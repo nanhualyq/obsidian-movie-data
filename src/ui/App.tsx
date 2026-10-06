@@ -58,6 +58,37 @@ export function App({ store }: { store: MovieStore }) {
 		setMode({ kind: "list" });
 	}, [store]);
 
+	/**
+	 * D2: delete path - persist the filtered dataset first (movies.json), then
+	 * remove the entity's cover file. State updates only after save succeeds;
+	 * a cover-deletion failure is logged but does not roll back (a leftover
+	 * cover file is inert - the storage spec orders JSON first for this).
+	 */
+	const remove = useCallback(
+		async (next: MovieStoreData, coverFile: string | null): Promise<boolean> => {
+			// staged-but-unsaved covers must not be written by this save
+			store.discardStaged();
+			try {
+				await store.save(next);
+			} catch (e) {
+				console.error("movie-data: save failed", e);
+				new Notice("Failed to save movie data - see console.");
+				return false;
+			}
+			if (coverFile) {
+				try {
+					await store.deleteCover(coverFile);
+				} catch (e) {
+					console.error("movie-data: failed to delete cover", e);
+				}
+			}
+			setData(next);
+			setMode({ kind: "list" });
+			return true;
+		},
+		[store]
+	);
+
 	if (status === "error") {
 		return (
 			<div className="movie-data-load-error">
@@ -74,12 +105,12 @@ export function App({ store }: { store: MovieStore }) {
 
 	if (mode.kind === "movie-form") {
 		return (
-			<MovieForm store={store} data={data} movie={mode.movie} commit={commit} onCancel={cancel} />
+			<MovieForm store={store} data={data} movie={mode.movie} commit={commit} remove={remove} onCancel={cancel} />
 		);
 	}
 	if (mode.kind === "actor-form") {
 		return (
-			<ActorForm store={store} data={data} actor={mode.actor} commit={commit} onCancel={cancel} />
+			<ActorForm store={store} data={data} actor={mode.actor} commit={commit} remove={remove} onCancel={cancel} />
 		);
 	}
 

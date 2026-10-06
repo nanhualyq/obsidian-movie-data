@@ -137,6 +137,19 @@ export class MovieStore {
 		}
 	}
 
+	/**
+	 * Delete a cover file and drop its cached object URL so it can no longer
+	 * be rendered. A missing file is not an error (entities may have no
+	 * cover, or a prior write may have failed); real removal failures propagate.
+	 */
+	async deleteCover(filename: string): Promise<void> {
+		if (!filename) return;
+		this.invalidateCover(filename);
+		if (await this.adapter.exists(`${COVERS_DIR}/${filename}`)) {
+			await this.adapter.remove(`${COVERS_DIR}/${filename}`);
+		}
+	}
+
 	private invalidateCover(filename: string): void {
 		const url = this.coverCache.get(filename);
 		if (url) {

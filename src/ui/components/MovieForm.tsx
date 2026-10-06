@@ -3,6 +3,7 @@ import type { MovieStore } from "../../store";
 import type { Movie, MovieStoreData } from "../../types";
 import { ActorSelect } from "./ActorSelect";
 import { CoverPicker } from "./CoverPicker";
+import { DeleteControls } from "./DeleteControls";
 import { Field } from "./Field";
 import { FormButtons } from "./FormButtons";
 
@@ -11,12 +12,14 @@ export function MovieForm({
 	data,
 	movie,
 	commit,
+	remove,
 	onCancel,
 }: {
 	store: MovieStore;
 	data: MovieStoreData;
 	movie: Movie;
 	commit: (next: MovieStoreData) => Promise<boolean>;
+	remove: (next: MovieStoreData, coverFile: string | null) => Promise<boolean>;
 	onCancel: () => void;
 }) {
 	const isNew = !data.movies.some((x) => x.id === movie.id);
@@ -28,6 +31,13 @@ export function MovieForm({
 	const [actorIds, setActorIds] = useState<Set<string>>(new Set(movie.actorIds));
 	const [cover, setCover] = useState(movie.cover);
 	const [saving, setSaving] = useState(false);
+
+	// D2: form computes the filtered dataset; App persists JSON first, then the cover
+	const onDelete = () =>
+		remove(
+			{ movies: data.movies.filter((m) => m.id !== movie.id), actors: data.actors },
+			movie.cover || null
+		);
 
 	const onSave = async () => {
 		const nextMovie: Movie = {
@@ -71,6 +81,7 @@ export function MovieForm({
 			/>
 			<CoverPicker store={store} entityId={movie.id} value={cover} onChange={setCover} />
 			<FormButtons onSave={onSave} onCancel={onCancel} saving={saving} />
+			{!isNew && <DeleteControls onConfirm={onDelete} />}
 		</div>
 	);
 }

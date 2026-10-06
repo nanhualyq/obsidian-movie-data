@@ -143,6 +143,33 @@ describe("save (explicit persistence)", () => {
 	});
 });
 
+describe("deleteCover", () => {
+	it("removes an existing cover file and drops its cached URL", async () => {
+		await store.ensure();
+		store.stageCover("m_1", new Uint8Array([1, 2, 3]));
+		await store.save({ movies: [], actors: [] });
+		expect(mem.files.has(`${COVERS_DIR}/m_1.mcov`)).toBe(true);
+
+		const url1 = await store.coverUrl("m_1.mcov");
+		expect(url1).not.toBeNull();
+
+		mem.removals.length = 0;
+		await store.deleteCover("m_1.mcov");
+		expect(mem.files.has(`${COVERS_DIR}/m_1.mcov`)).toBe(false);
+		expect(mem.removals).toEqual([`${COVERS_DIR}/m_1.mcov`]);
+
+		// cached URL dropped: a fresh fetch hits the (now missing) file -> placeholder
+		expect(await store.coverUrl("m_1.mcov")).toBeNull();
+	});
+
+	it("missing file is a no-op, not an error", async () => {
+		await store.ensure();
+		await expect(store.deleteCover("nope.mcov")).resolves.toBeUndefined();
+		await expect(store.deleteCover("")).resolves.toBeUndefined();
+		expect(mem.removals).toHaveLength(0);
+	});
+});
+
 describe("cover deformation (scanner resistance)", () => {
 	it("stampCover prepends the fixed prefix; decodeCover round-trips bytes", () => {
 		const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 7, 7, 7]);
