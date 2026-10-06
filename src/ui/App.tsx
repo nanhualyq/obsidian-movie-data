@@ -10,6 +10,22 @@ import type { ListState, Mode } from "./state";
 const EMPTY_LIST: ListState = { query: "", entityFilter: "movies", selectedTags: new Set<string>() };
 
 /**
+ * D1: cover files that become unreferenced by this save - entities whose
+ * `cover` field goes non-empty -> `""`. Keys off the previously referenced
+ * filename (D4), so it can never name a file another entity still uses.
+ */
+export function staleCovers(prev: MovieStoreData, next: MovieStoreData): string[] {
+	const before = new Map<string, string>();
+	for (const e of [...prev.movies, ...prev.actors]) before.set(e.id, e.cover);
+	const stale: string[] = [];
+	for (const e of [...next.movies, ...next.actors]) {
+		const was = before.get(e.id);
+		if (was && e.cover === "") stale.push(was);
+	}
+	return stale;
+}
+
+/**
  * Root component: owns all application state (design D2) and the load
  * lifecycle (D3). Business data lives here - MovieStore is pure I/O.
  */
@@ -38,6 +54,8 @@ export function App({ store }: { store: MovieStore }) {
 	/** D4: sequential save - persist first, update state only on success. */
 	const commit = useCallback(
 		async (next: MovieStoreData): Promise<boolean> => {
+			// covers cleared by this save; deleted only after the JSON write (D2)
+			const stale = staleCovers(data, next);
 			try {
 				await store.save(next);
 			} catch (e) {
@@ -45,11 +63,20 @@ export function App({ store }: { store: MovieStore }) {
 				new Notice("Failed to save movie data - see console.");
 				return false;
 			}
+			// JSON-first: only now is the file unreferenced. Failures are inert -
+			// log them, never roll back the successful save (D3).
+			for (const filename of stale) {
+				try {
+					await store.deleteCover(filename);
+				} catch (e) {
+					console.error("movie-data: failed to delete removed cover", e);
+				}
+			}
 			setData(next);
 			setMode({ kind: "list" });
 			return true;
 		},
-		[store]
+		[store, data]
 	);
 
 	/** Cancel path: drop staged covers, write nothing (spec: explicit persistence). */
