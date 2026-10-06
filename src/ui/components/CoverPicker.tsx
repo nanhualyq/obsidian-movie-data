@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { MovieStore } from "../../store";
+import { normalizeCover } from "../../coverImage";
 import { CoverImage } from "./CoverImage";
 
 /**
@@ -20,9 +21,14 @@ export function CoverPicker({
 }) {
 	const [stagedUrl, setStagedUrl] = useState<string | null>(null);
 
-	/** Shared staging path for both input sources: file pick and clipboard paste. */
+	/**
+	 * Shared staging path for both input sources: file pick and clipboard paste.
+	 * Bytes are size-normalized first (spec: "Covers are size-normalized before
+	 * storage"); normalization is fail-soft, so staging always receives bytes.
+	 */
 	const handleImageFile = async (file: File) => {
-		const bytes = new Uint8Array(await file.arrayBuffer());
+		const original = new Uint8Array(await file.arrayBuffer());
+		const bytes = await normalizeCover(original);
 		const staged = store.stageCover(entityId, bytes);
 		setStagedUrl(staged.previewUrl);
 		onChange(staged.filename);

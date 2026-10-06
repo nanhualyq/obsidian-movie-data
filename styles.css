@@ -88,10 +88,12 @@
 	overflow: hidden;
 }
 
+/* Grid card: contain (design D5) - the whole image stays visible inside the
+   fixed 2:3 frame instead of being cropped; posters (2:3) render as before. */
 .movie-data-cover img {
 	width: 100%;
 	height: 100%;
-	object-fit: cover;
+	object-fit: contain;
 	display: block;
 }
 
