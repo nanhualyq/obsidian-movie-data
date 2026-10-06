@@ -1,5 +1,5 @@
 import type { App } from "obsidian";
-import type { Actor, Movie, MovieStoreData } from "./types";
+import type { MovieStoreData } from "./types";
 
 export const DATA_DIR = ".movie-data";
 export const JSON_PATH = `${DATA_DIR}/movies.json`;
@@ -34,11 +34,14 @@ export function newId(prefix: "m" | "a"): string {
 	return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
-export class MovieStore {
-	data: MovieStoreData = { movies: [], actors: [] };
-	/** True when movies.json is missing/unreadable/unparseable. */
-	loadError = false;
+export type LoadResult = { ok: true; data: MovieStoreData } | { ok: false };
 
+/**
+ * Pure I/O layer: reads/writes movies.json and cover files. Holds no
+ * business data - the React app owns that; the only state kept here is
+ * resource lifecycle (staged covers awaiting save, cached blob URLs).
+ */
+export class MovieStore {
 	private pendingCovers = new Map<string, Uint8Array>();
 	private coverCache = new Map<string, string>();
 	private stagedPreviewUrls = new Set<string>();
@@ -62,8 +65,8 @@ export class MovieStore {
 		}
 	}
 
-	/** Load movies.json. On failure, sets loadError and keeps in-memory data untouched. */
-	async load(): Promise<void> {
+	/** Load movies.json. On any failure, returns { ok: false } without throwing. */
+	async load(): Promise<LoadResult> {
 		try {
 			if (!(await this.adapter.exists(JSON_PATH))) {
 				await this.ensure();
@@ -73,11 +76,10 @@ export class MovieStore {
 			if (!parsed || !Array.isArray(parsed.movies) || !Array.isArray(parsed.actors)) {
 				throw new Error("movies.json has unexpected shape");
 			}
-			this.data = { movies: parsed.movies, actors: parsed.actors };
-			this.loadError = false;
+			return { ok: true, data: { movies: parsed.movies, actors: parsed.actors } };
 		} catch (e) {
 			console.error("movie-data: failed to load movies.json", e);
-			this.loadError = true;
+			return { ok: false };
 		}
 	}
 
@@ -105,13 +107,13 @@ export class MovieStore {
 	 * Spec: Explicit persistence. Writes staged covers first, then the whole
 	 * movies.json. Nothing is written unless this is called (save path only).
 	 */
-	async save(): Promise<void> {
+	async save(data: MovieStoreData): Promise<void> {
 		for (const [filename, bytes] of this.pendingCovers) {
 			await this.adapter.writeBinary(`${COVERS_DIR}/${filename}`, toArrayBuffer(bytes));
 			this.invalidateCover(filename);
 		}
 		this.discardStaged();
-		await this.adapter.write(JSON_PATH, JSON.stringify(this.data, null, 2));
+		await this.adapter.write(JSON_PATH, JSON.stringify(data, null, 2));
 	}
 
 	/**
@@ -148,17 +150,5 @@ export class MovieStore {
 		for (const url of this.coverCache.values()) URL.revokeObjectURL(url);
 		this.coverCache.clear();
 		this.discardStaged();
-	}
-
-	get movies(): Movie[] {
-		return this.data.movies;
-	}
-
-	get actors(): Actor[] {
-		return this.data.actors;
-	}
-
-	actorById(id: string): Actor | undefined {
-		return this.data.actors.find((a) => a.id === id);
 	}
 }

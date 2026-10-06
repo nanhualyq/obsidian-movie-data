@@ -8,7 +8,9 @@ export default class MovieDataPlugin extends Plugin {
 	async onload(): Promise<void> {
 		this.store = new MovieStore(this.app);
 		await this.store.ensure();
-		await this.store.load();
+		// Load happens in the React App on mount (design D3): the store no
+		// longer keeps data, and a cached result would go stale across
+		// view close/reopen cycles.
 
 		this.registerView(VIEW_TYPE_MOVIE_DATA, (leaf: WorkspaceLeaf) => new MovieDataView(leaf, this));
 

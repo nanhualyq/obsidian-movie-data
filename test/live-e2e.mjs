@@ -39,7 +39,24 @@ async function main() {
   };
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+  // React controlled inputs trap value assignment: setting el.value goes
+  // through React's value tracker, so a following input event looks "unchanged"
+  // and onChange never fires. Use the native prototype setter (bypasses the
+  // tracker) + a bubbling input event so it reaches React's root listener.
+  const SET_VALUE = `(el, v) => {
+    const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, v);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }`;
+
   await send('Runtime.enable');
+
+  // --- reset to a fresh install (suite assumes empty store) ---
+  await js(`(async () => { try { await app.plugins.disablePlugin('movie-data'); } catch (e) {} })()`);
+  await wait(400);
+  await js(`require('fs').rmSync(app.vault.adapter.basePath + '/.movie-data', { recursive: true, force: true })`);
+  await js(`(async () => { try { await app.plugins.enablePlugin('movie-data'); } catch (e) {} })()`);
+  await wait(1200);
 
   // --- open view (assume already open; ensure exactly one) ---
   await js(`app.commands.executeCommandById('movie-data:open-movie-data')`);
@@ -55,10 +72,10 @@ async function main() {
   await js(`(() => {
     const form = document.querySelector('.movie-data-form');
     const inputs = [...form.querySelectorAll('input[type=text]')];
-    const set = (el, v) => { el.value = v; el.dispatchEvent(new Event('input', {bubbles:true})); };
+    const set = ${SET_VALUE};
     set(inputs[0], 'Ana de Armas');
     set(inputs[1], 'https://example.com/ana');
-    form.querySelector('textarea').value = 'Cuban actress';
+    set(form.querySelector('textarea'), 'Cuban actress');
   })()`);
   // actor cover through real file input
   await js(`(async () => {
@@ -73,7 +90,11 @@ async function main() {
   })()`);
   await js(`[...document.querySelectorAll('.movie-data-form-buttons button')].find(b=>b.textContent==='Save').click()`);
   await wait(600);
-  let st = await js(`JSON.stringify({actors: app.plugins.plugins['movie-data'].store.actors.length, name: app.plugins.plugins['movie-data'].store.actors[0]?.name})`);
+  let st = await js(`JSON.stringify((() => {
+    const fs = require('fs');
+    const d = JSON.parse(fs.readFileSync(app.vault.adapter.basePath + '/.movie-data/movies.json', 'utf8'));
+    return {actors: d.actors.length, name: d.actors[0]?.name};
+  })())`);
   let s = JSON.parse(st);
   ok(s.actors === 1 && s.name === 'Ana de Armas', 'live: actor saved via real form');
 
@@ -85,12 +106,12 @@ async function main() {
   await js(`(() => {
     const form = document.querySelector('.movie-data-form');
     const inputs = [...form.querySelectorAll('input[type=text]')];
-    inputs[0].value = 'Blade Runner 2049';
-    inputs[1].value = 'sci-fi, noir';
-    inputs[2].value = 'https://example.com/br2049';
-    form.querySelector('textarea').value = 'K look\\nsecond line';
-    const cb = form.querySelector('input[type=checkbox]');
-    cb.checked = true; cb.dispatchEvent(new Event('change', {bubbles:true}));
+    const set = ${SET_VALUE};
+    set(inputs[0], 'Blade Runner 2049');
+    set(inputs[1], 'sci-fi, noir');
+    set(inputs[2], 'https://example.com/br2049');
+    set(form.querySelector('textarea'), 'K look\\nsecond line');
+    form.querySelector('input[type=checkbox]').click();
   })()`);
   await js(`(async () => {
     const form = document.querySelector('.movie-data-form');
@@ -105,7 +126,11 @@ async function main() {
   await js(`[...document.querySelectorAll('.movie-data-form-buttons button')].find(b=>b.textContent==='Save').click()`);
   await wait(800);
 
-  st = await js(`JSON.stringify(app.plugins.plugins['movie-data'].store.movies[0] || null)`);
+  st = await js(`JSON.stringify((() => {
+    const fs = require('fs');
+    const d = JSON.parse(fs.readFileSync(app.vault.adapter.basePath + '/.movie-data/movies.json', 'utf8'));
+    return d.movies[0] || null;
+  })())`);
   const mv = JSON.parse(st);
   ok(!!mv && mv.title === 'Blade Runner 2049', 'live: movie saved via real form');
   ok(JSON.stringify(mv?.tags) === JSON.stringify(['sci-fi', 'noir']), 'live: tags parsed');
@@ -145,16 +170,16 @@ async function main() {
   const hasImg = JSON.parse(await js(`JSON.stringify({img: !!document.querySelector('.movie-data-cell .movie-data-cover img')})`));
   ok(hasImg.img, 'live: thumbnail <img> decoded and rendered');
 
-  // --- search by actor name ---
-  await js(`(() => { const s = document.querySelector('.movie-data-search'); s.value = 'keanu'; s.dispatchEvent(new Event('input')); })()`);
+  // --- search by actor name (React: native setter + bubbling input) ---
+  await js(`(() => { const s = document.querySelector('.movie-data-search'); (${SET_VALUE})(s, 'keanu'); })()`);
   await wait(200);
   let empty = JSON.parse(await js(`JSON.stringify({t: document.querySelector('.movie-data-empty')?.textContent, cells: document.querySelectorAll('.movie-data-cell').length})`));
   ok(empty.cells === 0 && empty.t === 'No results', 'live: non-matching search -> empty state');
-  await js(`(() => { const s = document.querySelector('.movie-data-search'); s.value = 'ana'; s.dispatchEvent(new Event('input')); })()`);
+  await js(`(() => { const s = document.querySelector('.movie-data-search'); (${SET_VALUE})(s, 'ana'); })()`);
   await wait(200);
   empty = JSON.parse(await js(`JSON.stringify({cells: document.querySelectorAll('.movie-data-cell').length, title: document.querySelector('.movie-data-cell-title')?.textContent})`));
   ok(empty.cells === 1 && empty.title === 'Blade Runner 2049', 'live: search by actor name finds movie');
-  await js(`(() => { const s = document.querySelector('.movie-data-search'); s.value = ''; s.dispatchEvent(new Event('input')); })()`);
+  await js(`(() => { const s = document.querySelector('.movie-data-search'); (${SET_VALUE})(s, ''); })()`);
 
   // --- tag filter ---
   await js(`[...document.querySelectorAll('.movie-data-tag')].find(b=>b.textContent==='noir').click()`);
@@ -177,12 +202,12 @@ async function main() {
   await wait(200);
   await js(`document.querySelector('.movie-data-cell').click()`);
   await wait(300);
-  await js(`(() => { const f = document.querySelector('.movie-data-form'); const i = f.querySelectorAll('input[type=text]')[0]; i.value = 'Ana de Armas Prime'; })()`);
+  await js(`(() => { const f = document.querySelector('.movie-data-form'); (${SET_VALUE})(f.querySelectorAll('input[type=text]')[0], 'Ana de Armas Prime'); })()`);
   await js(`[...document.querySelectorAll('.movie-data-form-buttons button')].find(b=>b.textContent==='Save').click()`);
   await wait(500);
   await js(`[...document.querySelectorAll('.movie-data-toolbar button')].find(b=>b.textContent==='Movies').click()`);
   await wait(200);
-  await js(`(() => { const s = document.querySelector('.movie-data-search'); s.value = 'Prime'; s.dispatchEvent(new Event('input')); })()`);
+  await js(`(() => { const s = document.querySelector('.movie-data-search'); (${SET_VALUE})(s, 'Prime'); })()`);
   await wait(200);
   const edited = JSON.parse(await js(`JSON.stringify({cells: document.querySelectorAll('.movie-data-cell').length})`));
   ok(edited.cells === 1, 'live: movie found via renamed actor (id reference intact)');
@@ -192,9 +217,24 @@ async function main() {
   await wait(500);
   await js(`app.plugins.enablePlugin('movie-data')`);
   await wait(1500);
-  const reloaded = await js(`JSON.stringify((() => { const p = app.plugins.plugins['movie-data']; return { loaded: !!p, movies: p?.store?.movies?.length, actors: p?.store?.actors?.length, loadError: p?.store?.loadError }; })())`);
+  const reloaded = await js(`JSON.stringify((() => {
+    const p = app.plugins.plugins['movie-data'];
+    const fs = require('fs');
+    const d = JSON.parse(fs.readFileSync(app.vault.adapter.basePath + '/.movie-data/movies.json', 'utf8'));
+    return { loaded: !!p, movies: d.movies.length, actors: d.actors.length };
+  })())`);
   const rl = JSON.parse(reloaded);
-  ok(rl.loaded && rl.movies === 1 && rl.actors === 1 && rl.loadError === false, 'live: plugin reload keeps data');
+  ok(rl.loaded && rl.movies === 1 && rl.actors === 1, 'live: plugin reload keeps data');
+
+  // reopen the view: App loads from disk, no load-error screen
+  await js(`app.commands.executeCommandById('movie-data:open-movie-data')`);
+  await wait(800);
+  const postReload = await js(`JSON.stringify({
+    err: !!document.querySelector('.movie-data-load-error'),
+    cells: document.querySelectorAll('.movie-data-cell').length,
+  })`);
+  const pr = JSON.parse(postReload);
+  ok(!pr.err && pr.cells === 1, 'live: view reopens after reload without load-error');
 
   ok(errors.length === 0, 'live: no runtime exceptions' + (errors.length ? ' -> ' + JSON.stringify(errors) : ''));
 

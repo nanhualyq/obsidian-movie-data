@@ -6,18 +6,32 @@
   "scripts": {
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
     "dev": "node esbuild.config.mjs",
-    "test": "npm run test:view && npm run test:e2e",
-    "test:view": "esbuild test/verify.ts --bundle --format=cjs --platform=node --alias:obsidian=./test/obsidian-stub.ts --outfile=node_modules/.cache/verify.js && node node_modules/.cache/verify.js",
-    "test:e2e": "esbuild test/e2e.ts --bundle --format=cjs --platform=node --alias:obsidian=./test/obsidian-stub.ts --outfile=node_modules/.cache/e2e.js && node node_modules/.cache/e2e.js"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:live": "node test/live-e2e.mjs"
   },
-  "keywords": ["obsidian", "plugin", "movies"],
+  "keywords": [
+    "obsidian",
+    "plugin",
+    "movies"
+  ],
   "license": "MIT",
   "devDependencies": {
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
     "@types/node": "^20.11.0",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
     "builtin-modules": "^3.3.0",
     "esbuild": "^0.20.0",
+    "jsdom": "^30.1.2",
     "obsidian": "^1.5.7",
     "tslib": "^2.6.2",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.11"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   }
 }

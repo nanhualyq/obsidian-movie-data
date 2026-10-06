@@ -9,10 +9,11 @@
     "noImplicitAny": true,
     "skipLibCheck": true,
     "isolatedModules": true,
+    "jsx": "react-jsx",
     "esModuleInterop": true,
     "importHelpers": true,
     "allowJs": true,
     "strictNullChecks": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
 }
