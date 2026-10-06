@@ -1,0 +1,23 @@
+{
+  "name": "obsidian-movie-data",
+  "version": "0.1.0",
+  "description": "Obsidian plugin for managing movie and actor data",
+  "main": "main.js",
+  "scripts": {
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "dev": "node esbuild.config.mjs",
+    "test": "npm run test:view && npm run test:e2e",
+    "test:view": "esbuild test/verify.ts --bundle --format=cjs --platform=node --alias:obsidian=./test/obsidian-stub.ts --outfile=node_modules/.cache/verify.js && node node_modules/.cache/verify.js",
+    "test:e2e": "esbuild test/e2e.ts --bundle --format=cjs --platform=node --alias:obsidian=./test/obsidian-stub.ts --outfile=node_modules/.cache/e2e.js && node node_modules/.cache/e2e.js"
+  },
+  "keywords": ["obsidian", "plugin", "movies"],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "^0.20.0",
+    "obsidian": "^1.5.7",
+    "tslib": "^2.6.2",
+    "typescript": "^5.4.0"
+  }
+}

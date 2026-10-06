@@ -1,0 +1,9 @@
+{
+  "id": "movie-data",
+  "name": "Movie Data",
+  "version": "0.1.0",
+  "minAppVersion": "1.4.0",
+  "description": "Manage movie and actor data in ./movie-data with deformed cover images.",
+  "author": "",
+  "isDesktopOnly": false
+}
