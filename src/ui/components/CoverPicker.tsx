@@ -20,13 +20,18 @@ export function CoverPicker({
 }) {
 	const [stagedUrl, setStagedUrl] = useState<string | null>(null);
 
-	const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
-		const file = e.target.files?.[0];
-		if (!file) return;
+	/** Shared staging path for both input sources: file pick and clipboard paste. */
+	const handleImageFile = async (file: File) => {
 		const bytes = new Uint8Array(await file.arrayBuffer());
 		const staged = store.stageCover(entityId, bytes);
 		setStagedUrl(staged.previewUrl);
 		onChange(staged.filename);
+	};
+
+	const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		if (!file) return;
+		await handleImageFile(file);
 		// allow re-picking the same file name later
 		e.target.value = "";
 	};
@@ -37,8 +42,20 @@ export function CoverPicker({
 		onChange("");
 	};
 
+	/**
+	 * Paste only when focus is inside this field (container is focusable,
+	 * events bubble from within). Consumes the event only when an image is
+	 * present; text paste keeps its default behavior (design D1/D3).
+	 */
+	const onPaste = (e: React.ClipboardEvent) => {
+		const file = Array.from(e.clipboardData.files).find((f) => f.type.startsWith("image/"));
+		if (!file) return;
+		e.preventDefault();
+		handleImageFile(file);
+	};
+
 	return (
-		<div className="movie-data-field">
+		<div className="movie-data-field movie-data-cover-field" tabIndex={0} onPaste={onPaste}>
 			<label>Cover</label>
 			<CoverImage store={store} filename={value} stagedUrl={stagedUrl} preview />
 			<input type="file" accept="image/*" onChange={onPick} />

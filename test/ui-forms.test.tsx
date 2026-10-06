@@ -46,6 +46,20 @@ async function pickCoverAndWait(file: File) {
 	pickCover(file);
 	await waitFor(() => expect(form().querySelector(".movie-data-cover-preview img")).not.toBeNull());
 }
+function coverField() {
+	return form().querySelector(".movie-data-cover-field") as HTMLElement;
+}
+/** Simulate a paste landing inside the cover field (focus scoped to the field). */
+function pasteCover(files: File[]) {
+	return fireEvent.paste(coverField(), { clipboardData: { files } });
+}
+async function pasteCoverAndWait(files: File[]) {
+	pasteCover(files);
+	await waitFor(() => expect(form().querySelector(".movie-data-cover-preview img")).not.toBeNull());
+}
+function stagedPreviewSrc() {
+	return form().querySelector(".movie-data-cover-preview img")?.getAttribute("src");
+}
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 7, 7, 7, 7, 7]);
 const pngFile = () => new File([PNG as unknown as BlobPart], "poster.png", { type: "image/png" });
 
@@ -187,6 +201,86 @@ describe("actor-less movie form", () => {
 		await renderApp();
 		fireEvent.click(button("+ Add movie"));
 		expect(screen.getByText("No actors yet - add actors first.")).toBeTruthy();
+	});
+});
+
+describe("clipboard paste into cover field", () => {
+	beforeEach(() => seedJson({ movies: [], actors: [ACTOR] }));
+
+	it("paste stages an image with preview; nothing written until save", async () => {
+		await renderApp();
+		fireEvent.click(button("+ Add movie"));
+		fireEvent.change(textInputs()[0], { target: { value: "Heat" } });
+
+		await pasteCoverAndWait([pngFile()]);
+		expect(form().querySelector(".movie-data-cover-preview img")).not.toBeNull();
+		// staged in memory only: no cover file on disk yet
+		expect([...mem.files.keys()].some((k) => k.endsWith(".mcov"))).toBe(false);
+	});
+
+	it("paste over an existing staged cover replaces it", async () => {
+		await renderApp();
+		fireEvent.click(button("+ Add movie"));
+		await pasteCoverAndWait([pngFile()]);
+		const firstSrc = stagedPreviewSrc();
+		expect(firstSrc).toBeTruthy();
+
+		const other = new File([new Uint8Array([1, 2, 3, 4, 5])], "other.png", { type: "image/png" });
+		await pasteCoverAndWait([other]);
+		// stageCover mints a fresh object URL per stage: src must change
+		expect(stagedPreviewSrc()).not.toBe(firstSrc);
+	});
+
+	it("paste with only text in the clipboard is not consumed and stages nothing", async () => {
+		await renderApp();
+		fireEvent.click(button("+ Add movie"));
+
+		const notCancelled = pasteCover([]); // no files: text-only clipboard
+		expect(notCancelled).toBe(true); // default not prevented (design D3)
+		// no staging side effect after the async window would have elapsed
+		await new Promise((r) => setTimeout(r, 10));
+		expect(form().querySelector(".movie-data-cover-preview img")).toBeNull();
+		expect([...mem.files.keys()].some((k) => k.endsWith(".mcov"))).toBe(false);
+	});
+
+	it("paste outside the cover field does not stage a cover", async () => {
+		await renderApp();
+		fireEvent.click(button("+ Add movie"));
+
+		fireEvent.paste(textInputs()[0], { clipboardData: { files: [pngFile()] } });
+		await new Promise((r) => setTimeout(r, 10));
+		expect(form().querySelector(".movie-data-cover-preview img")).toBeNull();
+	});
+
+	it("saved pasted cover is written deformed like a picked one", async () => {
+		await renderApp();
+		fireEvent.click(button("+ Add movie"));
+		fireEvent.change(textInputs()[0], { target: { value: "Heat" } });
+		await pasteCoverAndWait([pngFile()]);
+
+		fireEvent.click(button("Save"));
+		await waitFor(() => {
+			const j = JSON.parse(mem.files.get(JSON_PATH) as string);
+			expect(j.movies).toHaveLength(1);
+		});
+		const heat = JSON.parse(mem.files.get(JSON_PATH) as string).movies[0];
+		expect(heat.cover).toMatch(/\.mcov$/);
+		const coverBytes = mem.files.get(`${COVERS_DIR}/${heat.cover}`) as Buffer;
+		expect(coverBytes.slice(0, COVER_PREFIX.length).equals(Buffer.from(COVER_PREFIX))).toBe(true);
+		expect(coverBytes[0]).not.toBe(0x89);
+		expect([...coverBytes.slice(COVER_PREFIX.length)]).toEqual([...PNG]);
+		await waitFor(() => expect(cells()).toHaveLength(1));
+	});
+
+	it("cancel after paste writes nothing", async () => {
+		await renderApp();
+		const jsonBefore = mem.files.get(JSON_PATH);
+		fireEvent.click(button("+ Add movie"));
+		await pasteCoverAndWait([pngFile()]);
+
+		fireEvent.click(button("Cancel"));
+		expect(mem.files.get(JSON_PATH)).toBe(jsonBefore);
+		expect([...mem.files.keys()].some((k) => k.endsWith(".mcov"))).toBe(false);
 	});
 });
 
