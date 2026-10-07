@@ -92,12 +92,15 @@ describe("list: selection filter", () => {
 		expect(button("Actors")).toBeTruthy();
 	});
 
-	it("actor dropdown: 'All actors' first, sorted actors; narrows and resets", async () => {
+	it("actor dropdown: 'All actors' first, sorted actors, Unknown always present; narrows and resets", async () => {
 		seedJson({ movies: MOVIES, actors: [ACTOR] });
 		await renderApp();
+		// Unknown option is listed even though no unknown record exists yet,
+		// so movies with unknown cast stay filterable
 		expect(Array.from(actorSelect().options).map((o) => o.textContent)).toEqual([
 			"All actors",
 			"Keanu Reeves",
+			"Unknown",
 		]);
 		chooseActor("a_1");
 		expect(cells()).toHaveLength(1);

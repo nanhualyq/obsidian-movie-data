@@ -2,11 +2,12 @@ import type { Actor, Movie } from "../types";
 
 export type EntityFilter = "movies" | "actors";
 
-/** Shared fallback actor for movies with unknown cast (design: fixed id, created lazily). */
+/** Shared fallback actor for movies with unknown cast (fixed id, created lazily). */
 export const UNKNOWN_ACTOR_ID = "a_unknown";
-export const UNKNOWN_ACTOR_NAME = "Unknown / Unnamed";
+/** The one and only unknown-name label, used by the fallback option, the shared record, and empty actor names. */
+export const UNKNOWN_ACTOR_NAME = "Unknown";
 
-/** Return `actors` with the shared Unknown/Unnamed record present (created on first use). */
+/** Return `actors` with the shared Unknown record present (created on first use). */
 export function ensureUnknownActor(actors: Actor[]): Actor[] {
 	return actors.some((a) => a.id === UNKNOWN_ACTOR_ID)
 		? actors

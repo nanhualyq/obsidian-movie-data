@@ -12,7 +12,7 @@ The plugin SHALL register a command (and ribbon entry, if applicable) that opens
 - THEN a new tab opens showing the movie list, or the existing tab is focused if one is already open
 
 ### Requirement: Click-to-filter list
-The list SHALL show entries as items with cover thumbnails and be filterable by selection only: by tag (movie tag chips), by actor (an actor dropdown in the movies view), and by entity type (movies/actors). The view SHALL NOT provide a text search input, and SHALL NOT perform full-text matching of titles or names. The actor dropdown SHALL list an "All actors" option first (no actor filtering), followed by every saved actor; choosing an actor SHALL narrow the movies to those referencing it. Tag chips SHALL be toggleable: clicking a selected chip deselects it, and within the tag group a movie matches if it carries any selected tag. When an actor is chosen AND tag chips are selected, a movie SHALL satisfy both.
+The list SHALL show entries as items with cover thumbnails and be filterable by selection only: by tag (movie tag chips), by actor (an actor dropdown in the movies view), and by entity type (movies/actors). The view SHALL NOT provide a text search input, and SHALL NOT perform full-text matching of titles or names. The actor dropdown SHALL list an "All actors" option first (no actor filtering), followed by every saved actor plus an "Unknown" option for movies with unknown cast - the "Unknown" option SHALL always be listed, whether or not its shared record exists yet, so unknown-cast movies remain filterable; choosing an option SHALL narrow the movies to those referencing it. Tag chips SHALL be toggleable: clicking a selected chip deselects it, and within the tag group a movie matches if it carries any selected tag. When an actor is chosen AND tag chips are selected, a movie SHALL satisfy both.
 
 #### Scenario: Filter by tag
 - **WHEN** the user clicks one or more tag chips in the movies view
@@ -58,7 +58,7 @@ Each entry in the actors list SHALL provide a jump action that switches the view
 - THEN the movies list is shown with an empty state rather than a blank or broken list
 
 ### Requirement: Add and edit forms
-Selecting an entry SHALL open an edit form in the same tab; the view SHALL provide a way to open an empty add form. Forms cover all schema fields of the respective entity, including a cover picker (choose image file, preview after deforming) and actor selection for a movie's `actorIds`, presented as a select control shared with the list's actor filter (multi-select in the form). A movie SHALL NOT save with an empty `actorIds`: on a save attempt with no actor selected, the form SHALL show an inline validation error, keep the form open, and write nothing. The actor selection SHALL offer an "Unknown / Unnamed" fallback option in addition to the saved actor records; selecting it SHALL save the movie referencing a single shared "Unknown / Unnamed" actor record, which the system SHALL create on first use if it does not exist.
+Selecting an entry SHALL open an edit form in the same tab; the view SHALL provide a way to open an empty add form. Forms cover all schema fields of the respective entity, including a cover picker (choose image file, preview after deforming) and actor selection for a movie's `actorIds`, presented as a select control shared with the list's actor filter (multi-select in the form). A movie SHALL NOT save with an empty `actorIds`: on a save attempt with no actor selected, the form SHALL show an inline validation error, keep the form open, and write nothing. The actor selection SHALL offer an "Unknown" fallback option in addition to the saved actor records; selecting it SHALL save the movie referencing a single shared "Unknown" actor record, which the system SHALL create on first use if it does not exist. The same "Unknown" label SHALL be used everywhere an entity has no usable name or cast.
 
 #### Scenario: Add a movie
 - **WHEN** the user opens the add form, fills title/tags/info/url, picks a cover, selects actors, and saves
@@ -77,12 +77,12 @@ Selecting an entry SHALL open an edit form in the same tab; the view SHALL provi
 - THEN the save is blocked, an inline error is shown on the Actors field, the form stays open, and no data or cover files are written
 
 #### Scenario: Fallback actor satisfies the requirement
-- **WHEN** the user selects the "Unknown / Unnamed" option and saves
-- THEN the movie saves with `actorIds` referencing the shared "Unknown / Unnamed" actor record (created if it does not yet exist), and the movie appears in the list
+- **WHEN** the user selects the "Unknown" option and saves
+- THEN the movie saves with `actorIds` referencing the shared "Unknown" actor record (created if it does not yet exist), and the movie appears in the list
 
 #### Scenario: No saved actors yet
 - **WHEN** the user opens the movie form while no actor records exist
-- THEN the actor selection still offers the "Unknown / Unnamed" option, so a movie can be saved without a dead end
+- THEN the actor selection still offers the "Unknown" option, so a movie can be saved without a dead end
 
 ### Requirement: Paste an image into the cover picker
 When focus is inside the cover field of the add/edit form and the user pastes, the system SHALL stage the clipboard image as the entity's cover if the clipboard contains image data, using the same staging behavior as choosing a file from disk (staged in memory until save, deformed bytes, preview shown). If the clipboard contains no image, the paste SHALL be ignored by the cover picker without side effects. Paste events outside the cover field SHALL NOT stage a cover.

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { MovieStore } from "../../store";
+import { UNKNOWN_ACTOR_NAME } from "../state";
 import type { Actor, MovieStoreData } from "../../types";
 import { CoverPicker } from "./CoverPicker";
 import { DeleteControls } from "./DeleteControls";
@@ -40,7 +41,7 @@ export function ActorForm({
 	const onSave = async () => {
 		const nextActor: Actor = {
 			...actor,
-			name: name.trim() || actor.name || "Unnamed",
+			name: name.trim() || actor.name || UNKNOWN_ACTOR_NAME,
 			url: url.trim(),
 			info,
 			cover,

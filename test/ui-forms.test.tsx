@@ -209,7 +209,7 @@ describe("edit actor (4.2): single source, id reference", () => {
 	});
 });
 
-describe("movie form: required actors + Unknown/Unnamed fallback", () => {
+describe("movie form: required actors + Unknown fallback", () => {
 	it("save with no actor is blocked: inline error, form stays open, nothing written", async () => {
 		seedJson({ movies: [], actors: [ACTOR] });
 		await renderApp();
@@ -246,7 +246,8 @@ describe("movie form: required actors + Unknown/Unnamed fallback", () => {
 		await renderApp();
 		fireEvent.click(button("+ Add movie"));
 		const opt = Array.from(formSelect().options).find((o) => o.value === UNKNOWN_ACTOR_ID);
-		expect(opt?.textContent).toBe("Unknown / Unnamed");
+		expect(opt?.textContent).toBe("Unknown");
+		expect(formSelect().size).toBeGreaterThanOrEqual(6); // roomy list box, not a sliver
 
 		fireEvent.change(textInputs()[0], { target: { value: "Mystery Film" } });
 		selectActorIds([UNKNOWN_ACTOR_ID]);
@@ -255,12 +256,12 @@ describe("movie form: required actors + Unknown/Unnamed fallback", () => {
 
 		const j = JSON.parse(mem.files.get(JSON_PATH) as string);
 		expect(j.actors).toHaveLength(1); // created lazily in the same commit
-		expect(j.actors[0]).toMatchObject({ id: UNKNOWN_ACTOR_ID, name: "Unknown / Unnamed" });
+		expect(j.actors[0]).toMatchObject({ id: UNKNOWN_ACTOR_ID, name: "Unknown" });
 		expect(j.movies[0].actorIds).toEqual([UNKNOWN_ACTOR_ID]);
 
 		// the record behaves like any actor: appears in the actor list...
 		fireEvent.click(button("Actors"));
-		expect(cells()[0].textContent).toContain("Unknown / Unnamed");
+		expect(cells()[0].textContent).toContain("Unknown");
 		// ...and in the filter dropdown
 		fireEvent.click(button("Movies"));
 		expect(Array.from(actorSelect().options).map((o) => o.value)).toContain(UNKNOWN_ACTOR_ID);
