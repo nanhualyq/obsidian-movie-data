@@ -14,6 +14,26 @@ export function ensureUnknownActor(actors: Actor[]): Actor[] {
 		: [...actors, { id: UNKNOWN_ACTOR_ID, name: UNKNOWN_ACTOR_NAME, cover: "", info: "", url: "" }];
 }
 
+/** One distinct tag with its occurrence count across movies. */
+export interface TagCount {
+	tag: string;
+	count: number;
+}
+
+/**
+ * Distinct tags across all movies with occurrence counts, sorted by count
+ * descending then alphabetically. Single source of truth for both the list's
+ * tag chips and the movie form's suggestion dropdown (no drift between the
+ * two views - same idea as ActorSelect building its own option list).
+ */
+export function tagHistory(movies: Movie[]): TagCount[] {
+	const counts = new Map<string, number>();
+	for (const m of movies) for (const t of m.tags) counts.set(t, (counts.get(t) ?? 0) + 1);
+	return [...counts.entries()]
+		.map(([tag, count]) => ({ tag, count }))
+		.sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+}
+
 export interface ListState {
 	/** Actor id to filter movies by; "" = all actors (no actor filter). */
 	actorFilter: string;

@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { MovieStore } from "../../store";
 import type { Movie, MovieStoreData } from "../../types";
-import { ensureUnknownActor, UNKNOWN_ACTOR_ID } from "../state";
+import { ensureUnknownActor, tagHistory, UNKNOWN_ACTOR_ID } from "../state";
 import { ActorSelect } from "./ActorSelect";
 import { CoverPicker } from "./CoverPicker";
 import { DeleteControls } from "./DeleteControls";
 import { Field } from "./Field";
 import { FormButtons } from "./FormButtons";
+import { TagInput } from "./TagInput";
 
 export function MovieForm({
 	store,
@@ -26,12 +27,14 @@ export function MovieForm({
 	const isNew = !data.movies.some((x) => x.id === movie.id);
 
 	const [title, setTitle] = useState(movie.title);
-	const [tagsText, setTagsText] = useState(movie.tags.join(", "));
+	const [tags, setTags] = useState<string[]>(movie.tags);
 	const [url, setUrl] = useState(movie.url);
 	const [info, setInfo] = useState(movie.info);
 	const [actorIds, setActorIds] = useState<Set<string>>(new Set(movie.actorIds));
 	const [cover, setCover] = useState(movie.cover);
 	const [saving, setSaving] = useState(false);
+	// Shared tag history: same source the list's chips derive from (no drift).
+	const history = useMemo(() => tagHistory(data.movies), [data.movies]);
 	// Actors are required: the error only shows after a blocked save attempt
 	// and disappears as soon as an actor is selected (derived, so re-clearing
 	// the selection brings it back).
@@ -56,7 +59,7 @@ export function MovieForm({
 		const nextMovie: Movie = {
 			...movie,
 			title: title.trim() || movie.title || "Untitled",
-			tags: tagsText.split(",").map((t) => t.trim()).filter(Boolean),
+			tags, // chips are the source of truth - no parsing on save
 			url: url.trim(),
 			info,
 			// preserve store order, only keep selected ids (D1: ids only)
@@ -77,7 +80,7 @@ export function MovieForm({
 		<div className="movie-data-form">
 			<h2>{isNew ? "Add movie" : "Edit movie"}</h2>
 			<Field label="Title" value={title} onChange={setTitle} />
-			<Field label="Tags (comma-separated)" value={tagsText} onChange={setTagsText} />
+			<TagInput value={tags} onChange={setTags} history={history} />
 			<Field label="URL" value={url} onChange={setUrl} />
 			<Field label="Info" value={info} onChange={setInfo} multiline />
 			<ActorSelect mode="multiple" actors={data.actors} value={actorIds} onChange={(next) => setActorIds(next as Set<string>)} />

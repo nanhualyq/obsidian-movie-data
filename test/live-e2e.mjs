@@ -115,7 +115,11 @@ async function main() {
     const inputs = [...form.querySelectorAll('input[type=text]')];
     const set = ${SET_VALUE};
     set(inputs[0], 'Blade Runner 2049');
-    set(inputs[1], 'sci-fi, noir');
+    // chips: type + Enter per tag (comma-separated typing is gone)
+    set(inputs[1], 'sci-fi');
+    inputs[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    set(inputs[1], 'noir');
+    inputs[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     set(inputs[2], 'https://example.com/br2049');
     set(form.querySelector('textarea'), 'K look\\nsecond line');
     const sel = form.querySelector('select[multiple]');

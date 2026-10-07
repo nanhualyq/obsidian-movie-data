@@ -1,7 +1,7 @@
 import { useMemo, type Dispatch, type SetStateAction } from "react";
 import { newId, type MovieStore } from "../../store";
 import type { MovieStoreData } from "../../types";
-import { computeResults, type EntityFilter, type ListState, type Mode } from "../state";
+import { computeResults, tagHistory, type EntityFilter, type ListState, type Mode } from "../state";
 import { ActorSelect } from "./ActorSelect";
 import { MovieGrid } from "./MovieGrid";
 import { TagFilter } from "./TagFilter";
@@ -22,12 +22,13 @@ export function ListView({
 }) {
 	const entries = useMemo(() => computeResults(data.movies, data.actors, list), [data, list]);
 
-	// Union of movie tags, only shown while the movies filter is active.
+	// Tag chips derive from the shared tag history (same source as the form's
+	// suggestions), alphabetical here to keep the chip row stable.
 	const tags = useMemo(() => {
 		if (list.entityFilter !== "movies") return [];
-		const all = new Set<string>();
-		for (const m of data.movies) for (const t of m.tags) all.add(t);
-		return [...all].sort();
+		return tagHistory(data.movies)
+			.map((e) => e.tag)
+			.sort((a, b) => a.localeCompare(b));
 	}, [data.movies, list.entityFilter]);
 
 	const emptyText =

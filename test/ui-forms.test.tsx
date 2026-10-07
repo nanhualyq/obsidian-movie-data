@@ -90,7 +90,9 @@ describe("add movie (4.1)", () => {
 		expect(screen.getByText("Add movie")).toBeTruthy();
 
 		fireEvent.change(textInputs()[0], { target: { value: "Heat" } });
-		fireEvent.change(textInputs()[1], { target: { value: "crime, heist" } });
+		// chips: type + Enter per tag (no separators)
+		fireEvent.change(textInputs()[1], { target: { value: "crime" } });
+		fireEvent.keyDown(textInputs()[1], { key: "Enter" });
 		await pickCoverAndWait(pngFile());
 
 		fireEvent.click(button("Cancel"));
@@ -108,7 +110,10 @@ describe("add movie (4.1)", () => {
 		fireEvent.click(button("+ Add movie"));
 		const [t, tg, u] = textInputs();
 		fireEvent.change(t, { target: { value: "Heat" } });
-		fireEvent.change(tg, { target: { value: "crime, heist" } });
+		for (const tag of ["crime", "heist"]) {
+			fireEvent.change(tg, { target: { value: tag } });
+			fireEvent.keyDown(tg, { key: "Enter" });
+		}
 		fireEvent.change(u, { target: { value: "https://example.com/heat" } });
 		fireEvent.change(form().querySelector("textarea")!, { target: { value: "Line one\nline two" } });
 		// pick the single actor in the shared select
@@ -346,6 +351,28 @@ describe("clipboard paste into cover field", () => {
 		fireEvent.click(button("Cancel"));
 		expect(mem.files.get(JSON_PATH)).toBe(jsonBefore);
 		expect([...mem.files.keys()].some((k) => k.endsWith(".mcov"))).toBe(false);
+	});
+});
+
+describe("tag history parity (spec: tag entry and tag filter share one history source)", () => {
+	it("every list tag chip is reachable from the form's suggestion dropdown", async () => {
+		seedJson({
+			movies: [
+				{ id: "m_1", title: "A", cover: "", tags: ["drama", "action"], actorIds: [ACTOR.id], info: "", url: "" },
+				{ id: "m_2", title: "B", cover: "", tags: ["drama", "comedy"], actorIds: [], info: "", url: "" },
+			],
+			actors: [ACTOR],
+		});
+		await renderApp();
+		const listChips = Array.from(document.querySelectorAll(".movie-data-tag")).map((c) => c.textContent!);
+		expect(listChips.length).toBeGreaterThan(0);
+
+		fireEvent.click(button("+ Add movie"));
+		fireEvent.focus(textInputs()[1]); // tags input
+		const suggestions = Array.from(document.querySelectorAll(".movie-data-tag-suggestion")).map(
+			(li) => li.textContent!
+		);
+		for (const chip of listChips) expect(suggestions).toContain(chip);
 	});
 });
 
