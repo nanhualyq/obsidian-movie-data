@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { MovieStore } from "../../store";
 import type { Movie, MovieStoreData } from "../../types";
+import { ensureUnknownActor, UNKNOWN_ACTOR_ID } from "../state";
 import { ActorSelect } from "./ActorSelect";
 import { CoverPicker } from "./CoverPicker";
 import { DeleteControls } from "./DeleteControls";
@@ -31,6 +32,11 @@ export function MovieForm({
 	const [actorIds, setActorIds] = useState<Set<string>>(new Set(movie.actorIds));
 	const [cover, setCover] = useState(movie.cover);
 	const [saving, setSaving] = useState(false);
+	// Actors are required: the error only shows after a blocked save attempt
+	// and disappears as soon as an actor is selected (derived, so re-clearing
+	// the selection brings it back).
+	const [saveAttempted, setSaveAttempted] = useState(false);
+	const actorError = saveAttempted && actorIds.size === 0;
 
 	// D2: form computes the filtered dataset; App persists JSON first, then the cover
 	const onDelete = () =>
@@ -40,21 +46,28 @@ export function MovieForm({
 		);
 
 	const onSave = async () => {
+		// Validation: at least one actor, nothing written on failure.
+		if (actorIds.size === 0) {
+			setSaveAttempted(true);
+			return;
+		}
+		// Fallback record is created lazily in the same commit as its first use.
+		const actors = actorIds.has(UNKNOWN_ACTOR_ID) ? ensureUnknownActor(data.actors) : data.actors;
 		const nextMovie: Movie = {
 			...movie,
 			title: title.trim() || movie.title || "Untitled",
 			tags: tagsText.split(",").map((t) => t.trim()).filter(Boolean),
 			url: url.trim(),
 			info,
-			// preserve store order, only keep checked ids (D1: ids only)
-			actorIds: data.actors.filter((a) => actorIds.has(a.id)).map((a) => a.id),
+			// preserve store order, only keep selected ids (D1: ids only)
+			actorIds: actors.filter((a) => actorIds.has(a.id)).map((a) => a.id),
 			cover,
 		};
 		const idx = data.movies.findIndex((m) => m.id === nextMovie.id);
 		const movies = idx >= 0 ? data.movies.map((m, i) => (i === idx ? nextMovie : m)) : [...data.movies, nextMovie];
 		setSaving(true);
 		try {
-			await commit({ movies, actors: data.actors });
+			await commit({ movies, actors });
 		} finally {
 			setSaving(false);
 		}
@@ -67,18 +80,12 @@ export function MovieForm({
 			<Field label="Tags (comma-separated)" value={tagsText} onChange={setTagsText} />
 			<Field label="URL" value={url} onChange={setUrl} />
 			<Field label="Info" value={info} onChange={setInfo} multiline />
-			<ActorSelect
-				actors={data.actors}
-				selectedIds={actorIds}
-				onToggle={(id) =>
-					setActorIds((prev) => {
-						const next = new Set(prev);
-						if (next.has(id)) next.delete(id);
-						else next.add(id);
-						return next;
-					})
-				}
-			/>
+			<ActorSelect mode="multiple" actors={data.actors} value={actorIds} onChange={(next) => setActorIds(next as Set<string>)} />
+			{actorError && (
+				<div className="movie-data-field-error" role="alert">
+					Select at least one actor.
+				</div>
+			)}
 			<CoverPicker store={store} entityId={movie.id} value={cover} onChange={setCover} />
 			<FormButtons onSave={onSave} onCancel={onCancel} saving={saving} />
 			{!isNew && <DeleteControls onConfirm={onDelete} />}

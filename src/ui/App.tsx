@@ -7,7 +7,7 @@ import { MovieForm } from "./components/MovieForm";
 import { ActorForm } from "./components/ActorForm";
 import type { ListState, Mode } from "./state";
 
-const EMPTY_LIST: ListState = { query: "", entityFilter: "movies", selectedTags: new Set<string>() };
+const EMPTY_LIST: ListState = { actorFilter: "", entityFilter: "movies", selectedTags: new Set<string>() };
 
 /**
  * D1: cover files that become unreferenced by this save - entities whose

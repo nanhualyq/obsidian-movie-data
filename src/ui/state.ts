@@ -2,8 +2,20 @@ import type { Actor, Movie } from "../types";
 
 export type EntityFilter = "movies" | "actors";
 
+/** Shared fallback actor for movies with unknown cast (design: fixed id, created lazily). */
+export const UNKNOWN_ACTOR_ID = "a_unknown";
+export const UNKNOWN_ACTOR_NAME = "Unknown / Unnamed";
+
+/** Return `actors` with the shared Unknown/Unnamed record present (created on first use). */
+export function ensureUnknownActor(actors: Actor[]): Actor[] {
+	return actors.some((a) => a.id === UNKNOWN_ACTOR_ID)
+		? actors
+		: [...actors, { id: UNKNOWN_ACTOR_ID, name: UNKNOWN_ACTOR_NAME, cover: "", info: "", url: "" }];
+}
+
 export interface ListState {
-	query: string;
+	/** Actor id to filter movies by; "" = all actors (no actor filter). */
+	actorFilter: string;
 	entityFilter: EntityFilter;
 	selectedTags: Set<string>;
 }
@@ -20,30 +32,26 @@ export interface GridEntry {
 	cover: string;
 }
 
-/** D6: in-memory haystack search + tag filter + entity type (ported from view.ts). */
+/**
+ * Selection-only filtering (no text search): tag chips (OR within group)
+ * and the single actor filter, combined AND across groups. The actor filter
+ * applies to movies only; actor entries are never narrowed.
+ */
 export function computeResults(
 	movies: Movie[],
 	actors: Actor[],
 	list: ListState
 ): GridEntry[] {
-	const q = list.query.trim().toLowerCase();
 	const out: GridEntry[] = [];
 
 	if (list.entityFilter === "movies") {
 		for (const m of movies) {
 			if (list.selectedTags.size > 0 && !m.tags.some((t) => list.selectedTags.has(t))) continue;
-			if (q) {
-				const actorNames = m.actorIds
-					.map((id) => actors.find((a) => a.id === id)?.name ?? "")
-					.join(" ");
-				const hay = `${m.title} ${actorNames}`.toLowerCase();
-				if (!hay.includes(q)) continue;
-			}
+			if (list.actorFilter && !m.actorIds.includes(list.actorFilter)) continue;
 			out.push({ kind: "movie", id: m.id, title: m.title, cover: m.cover });
 		}
 	} else {
 		for (const a of actors) {
-			if (q && !a.name.toLowerCase().includes(q)) continue;
 			out.push({ kind: "actor", id: a.id, title: a.name, cover: a.cover });
 		}
 	}

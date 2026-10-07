@@ -18,11 +18,6 @@
 	margin-bottom: 8px;
 }
 
-.movie-data-search {
-	flex: 1 1 200px;
-	min-width: 160px;
-}
-
 .movie-data-filters {
 	display: flex;
 	gap: 4px;
@@ -58,6 +53,17 @@
 .movie-data-tag.is-active {
 	background-color: var(--interactive-accent);
 	color: var(--text-on-accent);
+}
+
+/* Actor select: compact filter dropdown in the list, list box in the form */
+.movie-data-actor-select {
+	max-width: 220px;
+	margin-bottom: 10px;
+}
+
+.movie-data-actor-select-form {
+	max-width: none;
+	width: 100%;
 }
 
 /* Grid */
@@ -110,6 +116,15 @@
 	white-space: nowrap;
 }
 
+/* Jump from an actor entry to its filtered movies */
+.movie-data-jump {
+	display: block;
+	margin: 6px 8px 0;
+	font-size: 12px;
+	padding: 2px 6px;
+	cursor: pointer;
+}
+
 .movie-data-empty {
 	grid-column: 1 / -1;
 	text-align: center;
@@ -142,19 +157,10 @@
 	border-radius: 4px;
 }
 
-.movie-data-actor-list {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-	max-height: 220px;
-	overflow-y: auto;
-}
-
-.movie-data-actor-option {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	cursor: pointer;
+.movie-data-field-error {
+	color: var(--text-error);
+	font-size: var(--font-ui-smaller);
+	margin-top: 4px;
 }
 
 .movie-data-cover-preview {

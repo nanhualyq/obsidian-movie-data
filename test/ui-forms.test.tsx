@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { App } from "../src/ui/App";
 import { MovieStore, COVER_PREFIX, JSON_PATH, COVERS_DIR, newId } from "../src/store";
+import { UNKNOWN_ACTOR_ID } from "../src/ui/state";
 import { createMemoryApp, type MemoryApp } from "./memory-app";
 
 let mem: MemoryApp;
@@ -37,6 +38,19 @@ function textInputs() {
 }
 function fileInput() {
 	return form().querySelector('input[type="file"]') as HTMLInputElement;
+}
+/** The form's shared multi-select actor control. */
+function formSelect() {
+	return form().querySelector("select[multiple]") as HTMLSelectElement;
+}
+function selectActorIds(ids: string[]) {
+	const sel = formSelect();
+	for (const o of Array.from(sel.options)) o.selected = ids.includes(o.value);
+	fireEvent.change(sel);
+}
+/** The list's single-select actor filter dropdown. */
+function actorSelect() {
+	return document.querySelector(".movie-data-actor-select") as HTMLSelectElement;
 }
 function pickCover(file: File) {
 	fireEvent.change(fileInput(), { target: { files: [file] } });
@@ -97,9 +111,8 @@ describe("add movie (4.1)", () => {
 		fireEvent.change(tg, { target: { value: "crime, heist" } });
 		fireEvent.change(u, { target: { value: "https://example.com/heat" } });
 		fireEvent.change(form().querySelector("textarea")!, { target: { value: "Line one\nline two" } });
-		// check the single actor
-		const cb = form().querySelector('input[type="checkbox"]') as HTMLInputElement;
-		fireEvent.click(cb);
+		// pick the single actor in the shared select
+		selectActorIds([ACTOR.id]);
 		await pickCoverAndWait(pngFile());
 
 		fireEvent.click(button("Save"));
@@ -131,6 +144,7 @@ describe("add movie (4.1)", () => {
 	it("empty title falls back to Untitled; empty tags dropped", async () => {
 		await renderApp();
 		fireEvent.click(button("+ Add movie"));
+		selectActorIds([ACTOR.id]); // actors are required now
 		fireEvent.click(button("Save"));
 		await waitFor(() => expect(cells()).toHaveLength(1));
 		const j = JSON.parse(mem.files.get(JSON_PATH) as string);
@@ -140,7 +154,7 @@ describe("add movie (4.1)", () => {
 });
 
 describe("edit actor (4.2): single source, id reference", () => {
-	it("edit is reflected through movie references and search", async () => {
+	it("edit is reflected through movie references and the filter dropdown", async () => {
 		seedJson({
 			movies: [{ id: "m_1", title: "The Matrix", cover: "", tags: ["sci-fi"], actorIds: ["a_1"], info: "x", url: "" }],
 			actors: [ACTOR],
@@ -162,11 +176,11 @@ describe("edit actor (4.2): single source, id reference", () => {
 		expect(j.actors[0].id).toBe("a_1");
 		expect(j.movies[0].actorIds).toEqual(["a_1"]); // still id-only reference
 
-		// search by renamed actor still returns the referencing movie
+		// choosing the renamed actor in the dropdown still returns the referencing
+		// movie (id reference intact; text search no longer exists)
 		fireEvent.click(button("Movies"));
-		fireEvent.change(screen.getByPlaceholderText("Search title or actor..."), {
-			target: { value: "Prime" },
-		});
+		expect(Array.from(actorSelect().options).map((o) => o.textContent)).toContain("Ana de Armas Prime");
+		fireEvent.change(actorSelect(), { target: { value: "a_1" } });
 		expect(cells()).toHaveLength(1);
 		expect(cells()[0].textContent).toContain("The Matrix");
 	});
@@ -184,9 +198,9 @@ describe("edit actor (4.2): single source, id reference", () => {
 		// now addable to a movie
 		fireEvent.click(button("Movies"));
 		fireEvent.click(button("+ Add movie"));
-		const cb = form().querySelector('input[type="checkbox"]') as HTMLInputElement;
-		expect(cb).toBeTruthy();
-		fireEvent.click(cb);
+		const opt = Array.from(formSelect().options).find((o) => o.textContent === "Cuban actress");
+		expect(opt).toBeTruthy();
+		selectActorIds([opt!.value]);
 		fireEvent.click(button("Save"));
 		await waitFor(() => {
 			const j = JSON.parse(mem.files.get(JSON_PATH) as string);
@@ -195,12 +209,61 @@ describe("edit actor (4.2): single source, id reference", () => {
 	});
 });
 
-describe("actor-less movie form", () => {
-	it("shows placeholder when no actors exist", async () => {
-		seedJson({ movies: [], actors: [] });
+describe("movie form: required actors + Unknown/Unnamed fallback", () => {
+	it("save with no actor is blocked: inline error, form stays open, nothing written", async () => {
+		seedJson({ movies: [], actors: [ACTOR] });
+		await renderApp();
+		const jsonBefore = mem.files.get(JSON_PATH);
+		fireEvent.click(button("+ Add movie"));
+		fireEvent.change(textInputs()[0], { target: { value: "Heat" } });
+
+		fireEvent.click(button("Save"));
+
+		expect(screen.getByText("Add movie")).toBeTruthy(); // form stays open
+		expect(screen.getByText("Select at least one actor.")).toBeTruthy(); // inline error
+		expect(mem.files.get(JSON_PATH)).toBe(jsonBefore); // nothing written
+		expect(cells()).toHaveLength(0);
+	});
+
+	it("error clears once an actor is selected and save succeeds", async () => {
+		seedJson({ movies: [], actors: [ACTOR] });
 		await renderApp();
 		fireEvent.click(button("+ Add movie"));
-		expect(screen.getByText("No actors yet - add actors first.")).toBeTruthy();
+		fireEvent.change(textInputs()[0], { target: { value: "Heat" } });
+		fireEvent.click(button("Save"));
+		expect(screen.getByText("Select at least one actor.")).toBeTruthy();
+
+		selectActorIds([ACTOR.id]);
+		expect(screen.queryByText("Select at least one actor.")).toBeNull();
+		fireEvent.click(button("Save"));
+		await waitFor(() => expect(cells()).toHaveLength(1));
+		const j = JSON.parse(mem.files.get(JSON_PATH) as string);
+		expect(j.movies[0].actorIds).toEqual([ACTOR.id]);
+	});
+
+	it("fallback option is offered with zero actors; saving creates the shared record", async () => {
+		seedJson({ movies: [], actors: [] }); // no actors at all - no dead end
+		await renderApp();
+		fireEvent.click(button("+ Add movie"));
+		const opt = Array.from(formSelect().options).find((o) => o.value === UNKNOWN_ACTOR_ID);
+		expect(opt?.textContent).toBe("Unknown / Unnamed");
+
+		fireEvent.change(textInputs()[0], { target: { value: "Mystery Film" } });
+		selectActorIds([UNKNOWN_ACTOR_ID]);
+		fireEvent.click(button("Save"));
+		await waitFor(() => expect(cells()).toHaveLength(1));
+
+		const j = JSON.parse(mem.files.get(JSON_PATH) as string);
+		expect(j.actors).toHaveLength(1); // created lazily in the same commit
+		expect(j.actors[0]).toMatchObject({ id: UNKNOWN_ACTOR_ID, name: "Unknown / Unnamed" });
+		expect(j.movies[0].actorIds).toEqual([UNKNOWN_ACTOR_ID]);
+
+		// the record behaves like any actor: appears in the actor list...
+		fireEvent.click(button("Actors"));
+		expect(cells()[0].textContent).toContain("Unknown / Unnamed");
+		// ...and in the filter dropdown
+		fireEvent.click(button("Movies"));
+		expect(Array.from(actorSelect().options).map((o) => o.value)).toContain(UNKNOWN_ACTOR_ID);
 	});
 });
 
@@ -256,6 +319,7 @@ describe("clipboard paste into cover field", () => {
 		await renderApp();
 		fireEvent.click(button("+ Add movie"));
 		fireEvent.change(textInputs()[0], { target: { value: "Heat" } });
+		selectActorIds([ACTOR.id]); // actors are required now
 		await pasteCoverAndWait([pngFile()]);
 
 		fireEvent.click(button("Save"));
@@ -291,6 +355,7 @@ describe("reload persistence (e2e 6)", () => {
 		fireEvent.click(button("+ Add movie"));
 		fireEvent.change(textInputs()[0], { target: { value: "Blade Runner 2049" } });
 		fireEvent.change(form().querySelector("textarea")!, { target: { value: "kept\nverbatim" } });
+		selectActorIds([ACTOR.id]); // actors are required now
 		fireEvent.click(button("Save"));
 		await waitFor(() => expect(cells()).toHaveLength(1));
 

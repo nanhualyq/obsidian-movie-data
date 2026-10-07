@@ -61,7 +61,16 @@ async function saveAndWaitBackToList() {
 	await waitFor(() => expect(cells()).toHaveLength(1));
 }
 
-const MOVIE = { id: "m_1", title: "Heat", cover: "m_1.mcov", tags: ["crime"], actorIds: [], info: "", url: "" };
+const MOVIE = { id: "m_1", title: "Heat", cover: "m_1.mcov", tags: ["crime"], actorIds: ["a_1"], info: "", url: "" };
+const ACTOR = { id: "a_1", name: "Ana de Armas", cover: "", info: "", url: "" };
+
+/** The form's shared multi-select actor control; select by explicit ids. */
+const formSelect = () => form().querySelector("select[multiple]") as HTMLSelectElement;
+function selectActorIds(ids: string[]) {
+	const sel = formSelect();
+	for (const o of Array.from(sel.options)) o.selected = ids.includes(o.value);
+	fireEvent.change(sel);
+}
 
 describe("staleCovers diff (design D1)", () => {
 	const base = (): MovieStoreData => ({
@@ -103,7 +112,7 @@ describe("staleCovers diff (design D1)", () => {
 
 describe("removing a cover persists to disk", () => {
 	it("Remove cover and save: file deleted after the JSON write, placeholder shown", async () => {
-		seed({ movies: [MOVIE], actors: [] }, { "m_1.mcov": PNG });
+		seed({ movies: [MOVIE], actors: [ACTOR] }, { "m_1.mcov": PNG });
 		await openAndRemoveCover();
 
 		await saveAndWaitBackToList();
@@ -122,7 +131,7 @@ describe("removing a cover persists to disk", () => {
 	});
 
 	it("Remove cover then pick a replacement: no deletion, file overwritten with new bytes", async () => {
-		seed({ movies: [MOVIE], actors: [] }, { "m_1.mcov": PNG });
+		seed({ movies: [MOVIE], actors: [ACTOR] }, { "m_1.mcov": PNG });
 		await openAndRemoveCover();
 
 		fireEvent.change(fileInput(), { target: { files: [pngFile()] } });
@@ -137,7 +146,7 @@ describe("removing a cover persists to disk", () => {
 	});
 
 	it("Cancel after removing a cover: nothing written", async () => {
-		seed({ movies: [MOVIE], actors: [] }, { "m_1.mcov": PNG });
+		seed({ movies: [MOVIE], actors: [ACTOR] }, { "m_1.mcov": PNG });
 		const jsonBefore = mem.files.get(JSON_PATH);
 		const fileBefore = mem.files.get(coverPath("m_1.mcov"));
 		await openAndRemoveCover();
@@ -152,7 +161,7 @@ describe("removing a cover persists to disk", () => {
 	});
 
 	it("JSON write fails: Notice shown, cover file left in place, form stays open", async () => {
-		seed({ movies: [MOVIE], actors: [] }, { "m_1.mcov": PNG });
+		seed({ movies: [MOVIE], actors: [ACTOR] }, { "m_1.mcov": PNG });
 		const adapter = mem.app.vault.adapter;
 		const origWrite = adapter.write.bind(adapter);
 		adapter.write = async (p: string, c: string) => {
@@ -171,7 +180,7 @@ describe("removing a cover persists to disk", () => {
 	});
 
 	it("Cover file already missing: save completes without error", async () => {
-		seed({ movies: [MOVIE], actors: [] }); // cover field set, no file on disk
+		seed({ movies: [MOVIE], actors: [ACTOR] }); // cover field set, no file on disk
 		await openAndRemoveCover();
 
 		await saveAndWaitBackToList();
@@ -182,7 +191,7 @@ describe("removing a cover persists to disk", () => {
 	});
 
 	it("Removal failure does not roll back: save succeeds, failure logged", async () => {
-		seed({ movies: [MOVIE], actors: [] }, { "m_1.mcov": PNG });
+		seed({ movies: [MOVIE], actors: [ACTOR] }, { "m_1.mcov": PNG });
 		const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 		mem.app.vault.adapter.remove = async () => {
 			throw new Error("EACCES");
@@ -200,10 +209,11 @@ describe("removing a cover persists to disk", () => {
 	});
 
 	it("Add form with a cover removed before saving: no cover file created", async () => {
-		seed({ movies: [], actors: [] });
+		seed({ movies: [], actors: [ACTOR] });
 		await renderApp();
 		fireEvent.click(button("+ Add movie"));
 		fireEvent.change(form().querySelector('input[type="text"]')!, { target: { value: "Heat" } });
+		selectActorIds([ACTOR.id]); // actors are required now
 
 		fireEvent.change(fileInput(), { target: { files: [pngFile()] } });
 		await waitFor(() => expect(form().querySelector(".movie-data-cover-preview img")).not.toBeNull());

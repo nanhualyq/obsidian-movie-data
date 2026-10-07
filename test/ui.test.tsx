@@ -34,12 +34,13 @@ async function renderApp() {
 const cells = () => Array.from(document.querySelectorAll(".movie-data-cell"));
 const buttons = () => screen.queryAllByRole("button");
 const button = (text: string) => buttons().find((b) => b.textContent === text)!;
-const searchInput = () => screen.getByPlaceholderText("Search title or actor...") as HTMLInputElement;
-function typeSearch(value: string) {
-	fireEvent.change(searchInput(), { target: { value } });
+const actorSelect = () => document.querySelector(".movie-data-actor-select") as HTMLSelectElement;
+function chooseActor(id: string) {
+	fireEvent.change(actorSelect(), { target: { value: id } });
 }
 
 const ACTOR = { id: "a_1", name: "Keanu Reeves", cover: "", info: "bio", url: "" };
+const ACTOR_NO_MOVIES = { id: "a_2", name: "Zoe Missing", cover: "", info: "", url: "" };
 const MOVIES = [
 	{ id: "m_1", title: "The Matrix", cover: "", tags: ["sci-fi", "action"], actorIds: ["a_1"], info: "free text\nkept verbatim", url: "http://x" },
 	{ id: "m_2", title: "Amelie", cover: "", tags: ["comedy"], actorIds: [], info: "", url: "" },
@@ -80,23 +81,45 @@ describe("list: grid render", () => {
 	});
 });
 
-describe("list: search / filter", () => {
-	it("search by actor name returns referencing movie", async () => {
+describe("list: selection filter", () => {
+	it("no text search input is present; toolbar still renders", async () => {
 		seedJson({ movies: MOVIES, actors: [ACTOR] });
 		await renderApp();
-		typeSearch("keanu");
+		expect(document.querySelector(".movie-data-search")).toBeNull();
+		expect(document.querySelector('input[type="search"]')).toBeNull();
+		expect(document.querySelector(".movie-data-toolbar")).not.toBeNull();
+		expect(button("Movies")).toBeTruthy();
+		expect(button("Actors")).toBeTruthy();
+	});
+
+	it("actor dropdown: 'All actors' first, sorted actors; narrows and resets", async () => {
+		seedJson({ movies: MOVIES, actors: [ACTOR] });
+		await renderApp();
+		expect(Array.from(actorSelect().options).map((o) => o.textContent)).toEqual([
+			"All actors",
+			"Keanu Reeves",
+		]);
+		chooseActor("a_1");
+		expect(cells()).toHaveLength(1);
+		expect(cells()[0].textContent).toContain("The Matrix");
+		chooseActor(""); // All actors resets the actor filter
+		expect(cells()).toHaveLength(2);
+	});
+
+	it("combined tag + actor filter intersects; no match shows empty state", async () => {
+		seedJson({ movies: MOVIES, actors: [ACTOR] });
+		await renderApp();
+		chooseActor("a_1");
+		fireEvent.click(button("comedy")); // Amelie has comedy, not a_1
+		expect(screen.getByText("No results")).toBeTruthy();
+		fireEvent.click(button("comedy")); // untoggle widens again
+		expect(cells()).toHaveLength(1);
+		fireEvent.click(button("sci-fi")); // a_1 + sci-fi: both groups satisfied
 		expect(cells()).toHaveLength(1);
 		expect(cells()[0].textContent).toContain("The Matrix");
 	});
 
-	it("no results shows empty state", async () => {
-		seedJson({ movies: MOVIES, actors: [ACTOR] });
-		await renderApp();
-		typeSearch("zzz-no-match");
-		expect(screen.getByText("No results")).toBeTruthy();
-	});
-
-	it("tag chips are the sorted union of movie tags; filter narrows", async () => {
+	it("tag chips are the sorted union of movie tags; filter narrows and deselect widens", async () => {
 		seedJson({ movies: MOVIES, actors: [ACTOR] });
 		await renderApp();
 		const chips = Array.from(document.querySelectorAll(".movie-data-tag")).map((c) => c.textContent);
@@ -108,7 +131,7 @@ describe("list: search / filter", () => {
 		expect(cells()).toHaveLength(2);
 	});
 
-	it("entity switch shows actors; add button follows filter; tags hidden", async () => {
+	it("entity switch shows actors; add button follows filter; filters hidden in actors view", async () => {
 		seedJson({ movies: MOVIES, actors: [ACTOR] });
 		await renderApp();
 		fireEvent.click(button("Actors"));
@@ -116,21 +139,56 @@ describe("list: search / filter", () => {
 		expect(cells()[0].textContent).toContain("Keanu Reeves");
 		expect(button("+ Add actor")).toBeTruthy();
 		expect(document.querySelector(".movie-data-tags")!.className).toContain("is-hidden");
+		expect(document.querySelector(".movie-data-actor-select")).toBeNull(); // dropdown hidden
 		fireEvent.click(button("Movies"));
 		expect(button("+ Add movie")).toBeTruthy();
 		expect(document.querySelector(".movie-data-tags")!.className).not.toContain("is-hidden");
+		expect(document.querySelector(".movie-data-actor-select")).not.toBeNull();
 	});
 
-	it("search text survives an open-and-cancel form round-trip", async () => {
+	it("filter selection survives an open-and-cancel form round-trip", async () => {
 		seedJson({ movies: MOVIES, actors: [ACTOR] });
 		await renderApp();
-		typeSearch("keanu");
+		chooseActor("a_1");
 		expect(cells()).toHaveLength(1);
 		fireEvent.click(button("+ Add movie"));
 		expect(screen.getByText("Add movie")).toBeTruthy();
 		fireEvent.click(button("Cancel"));
-		expect(searchInput().value).toBe("keanu");
+		expect(actorSelect().value).toBe("a_1");
 		expect(cells()).toHaveLength(1);
+	});
+});
+
+describe("list: actor jump", () => {
+	it("jump shows only that actor's movies, selects it in the dropdown, clears tags, opens no form", async () => {
+		seedJson({ movies: MOVIES, actors: [ACTOR, ACTOR_NO_MOVIES] });
+		await renderApp();
+		fireEvent.click(button("sci-fi")); // pre-selected to prove the jump clears tags
+		fireEvent.click(button("Actors"));
+		expect(cells()).toHaveLength(2);
+
+		const keanuCell = cells().find((c) => c.textContent!.includes("Keanu Reeves"))!;
+		fireEvent.click(keanuCell.querySelector(".movie-data-jump")!);
+
+		expect(document.querySelector(".movie-data-form")).toBeNull(); // edit form did NOT open
+		expect(document.querySelector(".movie-data-actor-select")).not.toBeNull(); // movies view
+		expect(actorSelect().value).toBe("a_1");
+		expect(cells()).toHaveLength(1); // Amelie excluded by the actor filter
+		expect(cells()[0].textContent).toContain("The Matrix");
+		// tag chips cleared by the jump
+		expect(button("sci-fi").className).not.toContain("is-active");
+	});
+
+	it("jump for an actor with no movies shows the empty state", async () => {
+		seedJson({ movies: MOVIES, actors: [ACTOR, ACTOR_NO_MOVIES] });
+		await renderApp();
+		fireEvent.click(button("Actors"));
+		const zoeCell = cells().find((c) => c.textContent!.includes("Zoe Missing"))!;
+		fireEvent.click(zoeCell.querySelector(".movie-data-jump")!);
+
+		expect(actorSelect().value).toBe("a_2");
+		expect(cells()).toHaveLength(0);
+		expect(screen.getByText("No results")).toBeTruthy();
 	});
 });
 

@@ -8,11 +8,14 @@ export function MovieGrid({
 	store,
 	emptyText,
 	onSelect,
+	onJumpActor,
 }: {
 	entries: GridEntry[];
 	store: MovieStore;
 	emptyText: string;
 	onSelect: (entry: GridEntry) => void;
+	/** Provided only in the actors view: jump an actor entry to its filtered movies. */
+	onJumpActor?: (actorId: string) => void;
 }) {
 	if (entries.length === 0) {
 		return (
@@ -24,7 +27,13 @@ export function MovieGrid({
 	return (
 		<div className="movie-data-grid">
 			{entries.map((entry) => (
-				<MovieCard key={`${entry.kind}:${entry.id}`} entry={entry} store={store} onSelect={onSelect} />
+				<MovieCard
+					key={`${entry.kind}:${entry.id}`}
+					entry={entry}
+					store={store}
+					onSelect={onSelect}
+					onJumpActor={entry.kind === "actor" ? onJumpActor : undefined}
+				/>
 			))}
 		</div>
 	);

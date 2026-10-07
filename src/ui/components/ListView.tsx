@@ -2,6 +2,7 @@ import { useMemo, type Dispatch, type SetStateAction } from "react";
 import { newId, type MovieStore } from "../../store";
 import type { MovieStoreData } from "../../types";
 import { computeResults, type EntityFilter, type ListState, type Mode } from "../state";
+import { ActorSelect } from "./ActorSelect";
 import { MovieGrid } from "./MovieGrid";
 import { TagFilter } from "./TagFilter";
 import { Toolbar } from "./Toolbar";
@@ -30,7 +31,7 @@ export function ListView({
 	}, [data.movies, list.entityFilter]);
 
 	const emptyText =
-		list.query || list.selectedTags.size > 0
+		list.selectedTags.size > 0 || list.actorFilter
 			? "No results"
 			: list.entityFilter === "movies"
 				? "No movies yet. Add one!"
@@ -60,15 +61,25 @@ export function ListView({
 		}
 	};
 
+	/** Jump from an actor entry to its movies, filtered to that actor only. */
+	const jumpToActor = (actorId: string) =>
+		setList({ entityFilter: "movies", actorFilter: actorId, selectedTags: new Set<string>() });
+
 	return (
 		<>
 			<Toolbar
-				query={list.query}
 				entityFilter={list.entityFilter}
-				onQuery={(q) => setList((prev) => ({ ...prev, query: q }))}
 				onEntityFilter={(f) => setList((prev) => ({ ...prev, entityFilter: f }))}
 				onAdd={openAdd}
 			/>
+			{list.entityFilter === "movies" && (
+				<ActorSelect
+					mode="single"
+					actors={data.actors}
+					value={list.actorFilter}
+					onChange={(id) => setList((prev) => ({ ...prev, actorFilter: id as string }))}
+				/>
+			)}
 			<TagFilter
 				hidden={list.entityFilter !== "movies"}
 				tags={tags}
@@ -82,7 +93,13 @@ export function ListView({
 					})
 				}
 			/>
-			<MovieGrid entries={entries} store={store} emptyText={emptyText} onSelect={openEntry} />
+			<MovieGrid
+				entries={entries}
+				store={store}
+				emptyText={emptyText}
+				onSelect={openEntry}
+				onJumpActor={list.entityFilter === "actors" ? jumpToActor : undefined}
+			/>
 		</>
 	);
 }

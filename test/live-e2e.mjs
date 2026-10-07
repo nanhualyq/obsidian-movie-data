@@ -49,6 +49,13 @@ async function main() {
     el.dispatchEvent(new Event('input', { bubbles: true }));
   }`;
 
+  // Single-select dropdown: same value-tracker bypass as SET_VALUE, then a
+  // bubbling change event so React's onChange fires.
+  const SET_SELECT = `(el, v) => {
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(el, v);
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }`;
+
   await send('Runtime.enable');
 
   // --- reset to a fresh install (suite assumes empty store) ---
@@ -111,7 +118,9 @@ async function main() {
     set(inputs[1], 'sci-fi, noir');
     set(inputs[2], 'https://example.com/br2049');
     set(form.querySelector('textarea'), 'K look\\nsecond line');
-    form.querySelector('input[type=checkbox]').click();
+    const sel = form.querySelector('select[multiple]');
+    [...sel.options].find(o => o.textContent === 'Ana de Armas').selected = true;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
   })()`);
   await js(`(async () => {
     const form = document.querySelector('.movie-data-form');
@@ -170,16 +179,37 @@ async function main() {
   const hasImg = JSON.parse(await js(`JSON.stringify({img: !!document.querySelector('.movie-data-cell .movie-data-cover img')})`));
   ok(hasImg.img, 'live: thumbnail <img> decoded and rendered');
 
-  // --- search by actor name (React: native setter + bubbling input) ---
-  await js(`(() => { const s = document.querySelector('.movie-data-search'); (${SET_VALUE})(s, 'keanu'); })()`);
+  // --- add a second actor with no movies (negative paths for filter + jump) ---
+  await js(`[...document.querySelectorAll('.movie-data-toolbar button')].find(b=>b.textContent==='Actors').click()`);
+  await wait(200);
+  await js(`[...document.querySelectorAll('.movie-data-toolbar button')].find(b=>b.textContent==='+ Add actor').click()`);
+  await wait(200);
+  await js(`(() => { const f = document.querySelector('.movie-data-form'); (${SET_VALUE})(f.querySelectorAll('input[type=text]')[0], 'Zoe Missing'); })()`);
+  await js(`[...document.querySelectorAll('.movie-data-form-buttons button')].find(b=>b.textContent==='Save').click()`);
+  await wait(500);
+  await js(`[...document.querySelectorAll('.movie-data-toolbar button')].find(b=>b.textContent==='Movies').click()`);
+  await wait(200);
+  const aid = JSON.parse(await js(`JSON.stringify((() => {
+    const d = JSON.parse(require('fs').readFileSync(app.vault.adapter.basePath + '/.movie-data/movies.json', 'utf8'));
+    return d.actors.find(a => a.name === 'Ana de Armas').id;
+  })())`));
+
+  // --- actor dropdown filter: non-matching actor -> empty state (was: search 'keanu') ---
+  await js(`(() => { const s = document.querySelector('.movie-data-actor-select'); const zoe = [...s.options].find(o => o.textContent === 'Zoe Missing'); (${SET_SELECT})(s, zoe.value); })()`);
   await wait(200);
   let empty = JSON.parse(await js(`JSON.stringify({t: document.querySelector('.movie-data-empty')?.textContent, cells: document.querySelectorAll('.movie-data-cell').length})`));
-  ok(empty.cells === 0 && empty.t === 'No results', 'live: non-matching search -> empty state');
-  await js(`(() => { const s = document.querySelector('.movie-data-search'); (${SET_VALUE})(s, 'ana'); })()`);
+  ok(empty.cells === 0 && empty.t === 'No results', 'live: non-matching actor filter -> empty state');
+
+  // --- matching actor -> referencing movie (was: search 'ana') ---
+  await js(`(() => { const s = document.querySelector('.movie-data-actor-select'); (${SET_SELECT})(s, '${aid}'); })()`);
   await wait(200);
   empty = JSON.parse(await js(`JSON.stringify({cells: document.querySelectorAll('.movie-data-cell').length, title: document.querySelector('.movie-data-cell-title')?.textContent})`));
-  ok(empty.cells === 1 && empty.title === 'Blade Runner 2049', 'live: search by actor name finds movie');
-  await js(`(() => { const s = document.querySelector('.movie-data-search'); (${SET_VALUE})(s, ''); })()`);
+  ok(empty.cells === 1 && empty.title === 'Blade Runner 2049', 'live: actor dropdown finds movie');
+
+  // --- All actors resets the filter (was: clearing the search box) ---
+  await js(`(() => { const s = document.querySelector('.movie-data-actor-select'); (${SET_SELECT})(s, ''); })()`);
+  await wait(200);
+  ok(JSON.parse(await js(`document.querySelectorAll('.movie-data-cell').length`)) === 1, 'live: All actors resets actor filter');
 
   // --- tag filter ---
   await js(`[...document.querySelectorAll('.movie-data-tag')].find(b=>b.textContent==='noir').click()`);
@@ -187,6 +217,20 @@ async function main() {
   ok(JSON.parse(await js(`document.querySelectorAll('.movie-data-cell').length`)) === 1, 'live: tag filter keeps tagged movie');
   await js(`[...document.querySelectorAll('.movie-data-tag')].find(b=>b.textContent==='noir').click()`);
   await wait(200);
+
+  // --- actor jump: actors view -> that actor's filtered movies (one round trip) ---
+  await js(`[...document.querySelectorAll('.movie-data-toolbar button')].find(b=>b.textContent==='Actors').click()`);
+  await wait(200);
+  await js(`(() => { const cell = [...document.querySelectorAll('.movie-data-cell')].find(c => c.textContent.includes('Ana de Armas')); cell.querySelector('.movie-data-jump').click(); })()`);
+  await wait(300);
+  const jumped = JSON.parse(await js(`JSON.stringify({
+    sel: document.querySelector('.movie-data-actor-select')?.value,
+    cells: document.querySelectorAll('.movie-data-cell').length,
+    title: document.querySelector('.movie-data-cell-title')?.textContent,
+    form: !!document.querySelector('.movie-data-form'),
+  })`));
+  ok(!jumped.form && jumped.cells === 1 && jumped.title === 'Blade Runner 2049' && jumped.sel === aid,
+     'live: actor jump filters movies, selects actor, opens no form');
 
   // --- cancel writes nothing ---
   const before = await js(`require('fs').readFileSync(app.vault.adapter.basePath + '/.movie-data/movies.json', 'utf8')`);
@@ -207,10 +251,12 @@ async function main() {
   await wait(500);
   await js(`[...document.querySelectorAll('.movie-data-toolbar button')].find(b=>b.textContent==='Movies').click()`);
   await wait(200);
-  await js(`(() => { const s = document.querySelector('.movie-data-search'); (${SET_VALUE})(s, 'Prime'); })()`);
-  await wait(200);
-  const edited = JSON.parse(await js(`JSON.stringify({cells: document.querySelectorAll('.movie-data-cell').length})`));
-  ok(edited.cells === 1, 'live: movie found via renamed actor (id reference intact)');
+  const renamed = JSON.parse(await js(`JSON.stringify({
+    opt: [...document.querySelectorAll('.movie-data-actor-select option')].map(o => o.textContent),
+    cells: document.querySelectorAll('.movie-data-cell').length,
+  })`));
+  ok(renamed.opt.includes('Ana de Armas Prime') && renamed.cells === 1,
+     'live: movie found via renamed actor (id reference intact)');
 
   // --- plugin reload persistence ---
   await js(`app.plugins.disablePlugin('movie-data')`);
@@ -224,7 +270,7 @@ async function main() {
     return { loaded: !!p, movies: d.movies.length, actors: d.actors.length };
   })())`);
   const rl = JSON.parse(reloaded);
-  ok(rl.loaded && rl.movies === 1 && rl.actors === 1, 'live: plugin reload keeps data');
+  ok(rl.loaded && rl.movies === 1 && rl.actors === 2, 'live: plugin reload keeps data');
 
   // reopen the view: App loads from disk, no load-error screen
   await js(`app.commands.executeCommandById('movie-data:open-movie-data')`);
