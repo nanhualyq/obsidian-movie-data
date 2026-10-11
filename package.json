@@ -8,6 +8,7 @@
     "deploy": "npm run build && node scripts/deploy.mjs",
     "deploy:copy": "node scripts/deploy.mjs",
     "dev": "node esbuild.config.mjs",
+    "dev:open": "node scripts/dev.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:live": "node test/live-e2e.mjs"
