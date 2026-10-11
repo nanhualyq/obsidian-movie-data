@@ -1,8 +1,10 @@
 // UI tests: React app rendered in jsdom via Testing Library. Ports the
 // scenario coverage of the old test/verify.ts + test/e2e.ts view tests.
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { Platform } from "obsidian";
 import { App } from "../src/ui/App";
+import { PAGE_SIZE, UNKNOWN_ACTOR_ID } from "../src/ui/state";
 import { MovieStore, stampCover, COVER_PREFIX, JSON_PATH, COVERS_DIR } from "../src/store";
 import { createMemoryApp, type MemoryApp } from "./memory-app";
 
@@ -192,6 +194,249 @@ describe("list: actor jump", () => {
 		expect(actorSelect().value).toBe("a_2");
 		expect(cells()).toHaveLength(0);
 		expect(screen.getByText("No results")).toBeTruthy();
+	});
+});
+
+describe("list: pagination", () => {
+	/** Newest-first display: page 1 shows the highest-index movies first. */
+	const pageMovie = (i: number, tags: string[] = []) => ({
+		id: `m_${(1_600_000_000_000 + i * 1000).toString(36)}${i.toString(36).padStart(4, "0")}`,
+		title: `Movie ${i}`,
+		cover: "",
+		tags,
+		actorIds: [],
+		info: "",
+		url: "",
+	});
+	const seedMany = (n: number, tagged = 0) =>
+		seedJson({
+			movies: Array.from({ length: n }, (_, i) => pageMovie(i, i < tagged ? ["long"] : [])),
+			actors: [],
+		});
+	const pageLabel = () => document.querySelector(".movie-data-page-label")?.textContent;
+
+	it("renders one page at a time; next/prev navigate; label and disabled states update", async () => {
+		seedMany(PAGE_SIZE * 2 + 1); // 121 -> 3 pages
+		await renderApp();
+		expect(cells()).toHaveLength(PAGE_SIZE);
+		expect(pageLabel()).toBe("1 / 3");
+		expect(button("Prev").disabled).toBe(true);
+		expect(cells()[0].textContent).toContain("Movie 120"); // newest first
+
+		fireEvent.click(button("Next"));
+		expect(pageLabel()).toBe("2 / 3");
+		expect(cells()).toHaveLength(PAGE_SIZE);
+		expect(cells()[0].textContent).toContain("Movie 60");
+
+		fireEvent.click(button("Next"));
+		expect(pageLabel()).toBe("3 / 3");
+		expect(cells()).toHaveLength(1);
+		expect(button("Next").disabled).toBe(true);
+
+		fireEvent.click(button("Prev"));
+		expect(pageLabel()).toBe("2 / 3");
+		expect(cells()).toHaveLength(PAGE_SIZE);
+	});
+
+	it("a filter change from page 3 lands on page 1 of the filtered results", async () => {
+		seedMany(140, 70); // 70 tagged -> 2 pages once filtered
+		await renderApp();
+		fireEvent.click(button("Next"));
+		fireEvent.click(button("Next"));
+		expect(pageLabel()).toBe("3 / 3");
+		fireEvent.click(button("long"));
+		expect(pageLabel()).toBe("1 / 2");
+		expect(cells()).toHaveLength(PAGE_SIZE);
+	});
+
+	it("out-of-range page after deletion shows the last page, not an empty grid", async () => {
+		seedMany(PAGE_SIZE * 2 + 1); // page 3 holds exactly one (oldest) movie
+		await renderApp();
+		fireEvent.click(button("Next"));
+		fireEvent.click(button("Next"));
+		expect(pageLabel()).toBe("3 / 3");
+		expect(cells()).toHaveLength(1);
+
+		fireEvent.click(cells()[0]); // edit form
+		fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+		fireEvent.click(screen.getByRole("button", { name: "Confirm delete?" }));
+		await waitFor(() => expect(screen.queryByText("Edit movie")).toBeNull());
+
+		// 120 left -> 2 pages; stored page 3 is out of range -> last page shown
+		await waitFor(() => expect(pageLabel()).toBe("2 / 2"));
+		expect(cells()).toHaveLength(PAGE_SIZE);
+	});
+
+	it("saving a new movie returns to page 1 and shows it first", async () => {
+		seedMany(70); // 2 pages
+		await renderApp();
+		fireEvent.click(button("Next"));
+		expect(pageLabel()).toBe("2 / 2");
+
+		fireEvent.click(button("+ Add movie"));
+		const form = document.querySelector(".movie-data-form")!;
+		fireEvent.change(form.querySelector('input[type="text"]')!, { target: { value: "Brand New" } });
+		const sel = form.querySelector("select[multiple]") as HTMLSelectElement;
+		for (const o of Array.from(sel.options)) o.selected = o.value === UNKNOWN_ACTOR_ID;
+		fireEvent.change(sel, {});
+		fireEvent.click(button("Save"));
+
+		await waitFor(() => expect(pageLabel()).toBe("1 / 2"));
+		expect(cells()).toHaveLength(PAGE_SIZE);
+		expect(cells()[0].textContent).toContain("Brand New"); // newest-first
+	});
+
+	it("pagination bar shows even for empty and short lists", async () => {
+		seedJson({ movies: [], actors: [] });
+		await renderApp();
+		expect(pageLabel()).toBe("1 / 1");
+		expect(button("Prev").disabled).toBe(true);
+		expect(button("Next").disabled).toBe(true);
+		expect(screen.getByText("No movies yet. Add one!")).toBeTruthy();
+	});
+});
+
+describe("list: layout regions", () => {
+	it("header / scroll / footer regions: grid scrolls alone, bars live outside it", async () => {
+		seedJson({ movies: MOVIES, actors: [ACTOR] });
+		await renderApp();
+		const header = document.querySelector(".movie-data-header")!;
+		const scroll = document.querySelector(".movie-data-scroll")!;
+		const footer = document.querySelector(".movie-data-footer")!;
+		expect(header).not.toBeNull();
+		expect(scroll).not.toBeNull();
+		expect(footer).not.toBeNull();
+		// toolbar + filters live in the header, outside the scroll region
+		expect(header.querySelector(".movie-data-toolbar")).not.toBeNull();
+		expect(header.querySelector(".movie-data-actor-select")).not.toBeNull();
+		expect(header.querySelector(".movie-data-tags")).not.toBeNull();
+		expect(scroll.querySelector(".movie-data-toolbar")).toBeNull();
+		// the grid (incl. empty state) is inside the scroll region only
+		expect(scroll.querySelector(".movie-data-grid")).not.toBeNull();
+		expect(header.querySelector(".movie-data-grid")).toBeNull();
+		// pagination lives in the footer, outside the scroll region
+		expect(footer.querySelector(".movie-data-pagination")).not.toBeNull();
+		expect(scroll.querySelector(".movie-data-pagination")).toBeNull();
+		// regions are siblings in order (flex column layout); in tests App mounts
+		// into a plain container instead of the classed Obsidian contentEl
+		const root = header.parentElement!;
+		expect(root.children.length).toBe(3);
+		expect(root.children[0]).toBe(header);
+		expect(root.children[1]).toBe(scroll);
+		expect(root.children[2]).toBe(footer);
+	});
+});
+
+describe("list: mobile hide-on-scroll", () => {
+	afterEach(() => {
+		Platform.isMobile = false; // stub is shared; always restore desktop
+	});
+
+	/** jsdom has no layout: shadow the element's scrollTop with a value. */
+	const mockScrollTop = (el: Element, v: number) =>
+		Object.defineProperty(el, "scrollTop", { value: v, writable: true, configurable: true });
+	const bars = () => ({
+		header: document.querySelector(".movie-data-header") as HTMLElement,
+		footer: document.querySelector(".movie-data-footer") as HTMLElement,
+		scroll: document.querySelector(".movie-data-scroll") as HTMLElement,
+	});
+	const hidden = (el: HTMLElement) => el.className.includes("is-hidden-bars");
+
+	it("mobile: scroll down hides both bars, scroll up or top restores them", async () => {
+		Platform.isMobile = true;
+		seedJson({ movies: MOVIES, actors: [ACTOR] });
+		await renderApp();
+		const { header, footer, scroll } = bars();
+		expect(header.className).toContain("is-overlay"); // overlays grid (spec: no reflow)
+
+		mockScrollTop(scroll, 100);
+		fireEvent.scroll(scroll);
+		await waitFor(() => expect(hidden(header)).toBe(true));
+		expect(hidden(footer)).toBe(true);
+
+		mockScrollTop(scroll, 60); // scrolling up
+		fireEvent.scroll(scroll);
+		await waitFor(() => expect(hidden(header)).toBe(false));
+		expect(hidden(footer)).toBe(false);
+
+		mockScrollTop(scroll, 200); // down again
+		fireEvent.scroll(scroll);
+		await waitFor(() => expect(hidden(header)).toBe(true));
+		mockScrollTop(scroll, 0); // back at the top: always visible
+		fireEvent.scroll(scroll);
+		await waitFor(() => expect(hidden(header)).toBe(false));
+		expect(hidden(footer)).toBe(false);
+	});
+
+	it("desktop: the gate keeps bars visible on any scroll", async () => {
+		Platform.isMobile = false;
+		seedJson({ movies: MOVIES, actors: [ACTOR] });
+		await renderApp();
+		const { header, footer, scroll } = bars();
+		expect(header.className).not.toContain("is-overlay"); // normal flow on desktop
+
+		mockScrollTop(scroll, 500);
+		fireEvent.scroll(scroll);
+		mockScrollTop(scroll, 10);
+		fireEvent.scroll(scroll);
+		expect(hidden(header)).toBe(false);
+		expect(hidden(footer)).toBe(false);
+	});
+
+	it("mobile: measures bar heights into the scroll-region spacer vars", async () => {
+		Platform.isMobile = true;
+		seedJson({ movies: MOVIES, actors: [ACTOR] });
+		await renderApp();
+		const { header, footer } = bars();
+		// jsdom has no layout: mock the heights the component measures
+		Object.defineProperty(header, "offsetHeight", { value: 120, configurable: true });
+		Object.defineProperty(footer, "offsetHeight", { value: 44, configurable: true });
+		fireEvent(window, new Event("resize")); // measurement effect re-runs
+		const root = header.parentElement!;
+		expect(root.style.getPropertyValue("--movie-data-hd")).toBe("120px");
+		expect(root.style.getPropertyValue("--movie-data-ft")).toBe("44px");
+	});
+
+	it("page change, filter change, and form round-trip restore the bars", async () => {
+		Platform.isMobile = true;
+		seedJson({
+			movies: Array.from({ length: 140 }, (_, i) => ({
+				id: `m_${(1_600_000_000_000 + i * 1000).toString(36)}${i.toString(36).padStart(4, "0")}`,
+				title: `Movie ${i}`,
+				cover: "",
+				tags: i < 70 ? ["long"] : [],
+				actorIds: [],
+				info: "",
+				url: "",
+			})),
+			actors: [],
+		});
+		await renderApp();
+		let top = 0;
+		const hide = async () => {
+			top += 100; // monotonically increasing so every delta is "down"
+			const { header, scroll } = bars(); // re-query: the form round-trip remounts
+			mockScrollTop(scroll, top);
+			fireEvent.scroll(scroll);
+			await waitFor(() => expect(hidden(header)).toBe(true));
+		};
+		const expectShown = () => {
+			const { header } = bars();
+			return waitFor(() => expect(hidden(header)).toBe(false));
+		};
+
+		await hide();
+		fireEvent.click(button("Next")); // page change
+		await expectShown();
+
+		await hide();
+		fireEvent.click(button("long")); // filter change
+		await expectShown();
+
+		await hide();
+		fireEvent.click(cells()[0]); // open the edit form (list unmounts)
+		fireEvent.click(button("Cancel")); // remount: fresh state
+		await expectShown();
 	});
 });
 

@@ -2,6 +2,9 @@ import type { Actor, Movie } from "../types";
 
 export type EntityFilter = "movies" | "actors";
 
+/** Fixed page size for the list (spec: one constant for all viewports). */
+export const PAGE_SIZE = 60;
+
 /** Shared fallback actor for movies with unknown cast (fixed id, created lazily). */
 export const UNKNOWN_ACTOR_ID = "a_unknown";
 /** The one and only unknown-name label, used by the fallback option, the shared record, and empty actor names. */
@@ -39,6 +42,8 @@ export interface ListState {
 	actorFilter: string;
 	entityFilter: EntityFilter;
 	selectedTags: Set<string>;
+	/** 1-based current page; reset to 1 on filter change and after a save. */
+	page: number;
 }
 
 export type Mode =
@@ -51,6 +56,30 @@ export interface GridEntry {
 	id: string;
 	title: string;
 	cover: string;
+}
+
+/**
+ * Creation timestamp embedded in an id by newId (`<prefix>_<base36 time><4 random>`),
+ * parsed NUMERICALLY from the base36 prefix (a plain string compare would only
+ * hold while the time part keeps a constant digit count). Returns null for ids
+ * not in that shape (hand-edited data, the fixed `a_unknown` id, test fixtures);
+ * callers keep input order for those.
+ */
+export function idTimestamp(id: string): number | null {
+	const at = id.indexOf("_");
+	const body = at < 0 ? "" : id.slice(at + 1);
+	// base36 time (>= 7 digits for any real clock) + exactly 4 random chars
+	if (!/^[0-9a-z]{11,}$/.test(body)) return null;
+	const ts = parseInt(body.slice(0, -4), 36);
+	return Number.isNaN(ts) ? null : ts;
+}
+
+/** Newest first; ids without a parseable timestamp keep their input order. */
+function byNewestFirst(a: GridEntry, b: GridEntry): number {
+	const ta = idTimestamp(a.id);
+	const tb = idTimestamp(b.id);
+	if (ta === null || tb === null) return 0;
+	return tb - ta;
 }
 
 /**
@@ -76,5 +105,7 @@ export function computeResults(
 			out.push({ kind: "actor", id: a.id, title: a.name, cover: a.cover });
 		}
 	}
-	return out;
+	// Newest first (spec: list ordering). Array.prototype.sort is stable, so
+	// same-millisecond ids and unparseable ids keep their input order.
+	return out.sort(byNewestFirst);
 }

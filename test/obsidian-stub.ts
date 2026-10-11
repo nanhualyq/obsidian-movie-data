@@ -33,6 +33,14 @@ export class Notice {
 
 export class WorkspaceLeaf {}
 
+/**
+ * Mutable so tests can flip device mode (default: desktop).
+ * Only the fields src/ actually reads are modeled.
+ */
+export const Platform = {
+	isMobile: false,
+};
+
 export class Plugin {
 	app: any;
 	manifest: any;

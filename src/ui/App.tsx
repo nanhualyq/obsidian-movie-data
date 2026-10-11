@@ -7,7 +7,7 @@ import { MovieForm } from "./components/MovieForm";
 import { ActorForm } from "./components/ActorForm";
 import type { ListState, Mode } from "./state";
 
-const EMPTY_LIST: ListState = { actorFilter: "", entityFilter: "movies", selectedTags: new Set<string>() };
+const EMPTY_LIST: ListState = { actorFilter: "", entityFilter: "movies", selectedTags: new Set<string>(), page: 1 };
 
 /**
  * D1: cover files that become unreferenced by this save - entities whose
@@ -73,6 +73,9 @@ export function App({ store }: { store: MovieStore }) {
 				}
 			}
 			setData(next);
+			// Returning to the list after a save: land on page 1 so a new entity
+			// (newest-first) is visible without hunting for it.
+			setList((prev) => (prev.page === 1 ? prev : { ...prev, page: 1 }));
 			setMode({ kind: "list" });
 			return true;
 		},
