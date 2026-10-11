@@ -229,6 +229,12 @@ dialog.movie-data-dialog {
 	color: var(--text-normal);
 }
 
+/* Detail dialogs get extra width for the enlarged cover (change:
+   enlarge-detail-cover, design D2). Forms keep the base 640px above. */
+dialog.movie-data-dialog.movie-data-detail-dialog {
+	width: min(840px, calc(100vw - 24px));
+}
+
 dialog.movie-data-dialog::backdrop {
 	background: rgb(0 0 0 / 0.45);
 }
@@ -249,6 +255,11 @@ dialog.movie-data-dialog::backdrop {
 		max-height: calc(100vh - 12px);
 	}
 
+	/* Keep the widened detail dialog on the same mobile gutter as forms. */
+	dialog.movie-data-dialog.movie-data-detail-dialog {
+		width: calc(100vw - 12px);
+	}
+
 	.movie-data-dialog-body {
 		max-height: calc(100vh - 12px);
 	}
@@ -261,10 +272,28 @@ dialog.movie-data-dialog::backdrop {
 	align-items: flex-start;
 }
 
+/* Enlarged cover column (change: enlarge-detail-cover, design D2/D3): sized
+   from the available dialog space, capped at ~400px/45% instead of a fixed
+   140px. The img override keeps auto dimensions capped by the box, so an
+   undersized stored image renders at its intrinsic resolution (never
+   upscaled) while the full image stays visible, uncropped. */
 .movie-data-detail .movie-data-cover {
-	width: 140px;
-	flex: 0 0 140px;
+	width: min(45%, 400px);
+	flex: 0 0 auto;
 	border-radius: 4px;
+}
+
+.movie-data-detail .movie-data-cover img {
+	width: auto;
+	height: auto;
+	max-width: 100%;
+	max-height: 100%;
+	object-fit: contain;
+}
+
+/* Placeholder scales with the larger box (change: enlarge-detail-cover). */
+.movie-data-detail .movie-data-cover.is-placeholder {
+	font-size: 64px;
 }
 
 .movie-data-detail-main {
@@ -310,7 +339,7 @@ dialog.movie-data-dialog::backdrop {
 	}
 
 	.movie-data-detail .movie-data-cover {
-		width: 120px;
+		width: min(70vw, 320px);
 		flex: 0 0 auto;
 	}
 }

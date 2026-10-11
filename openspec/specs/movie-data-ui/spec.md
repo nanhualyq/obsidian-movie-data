@@ -76,6 +76,25 @@ Selecting an entry in the list SHALL open a read-only detail dialog layered over
 - **WHEN** the user activates the add action in the toolbar
 - THEN the empty add form opens directly as a dialog over the list, with no detail dialog
 
+### Requirement: Detail dialog presents the cover large and uncropped
+The entry detail dialog (movie and actor) SHALL display the entity's cover image substantially larger than the list thumbnail, sized from the available dialog space rather than a fixed small thumbnail width. The complete image SHALL be visible with its aspect ratio preserved (no cropping). The rendered image SHALL NOT be scaled beyond its stored pixel dimensions (never upscaled), and the enlarged cover SHALL NOT overflow the dialog, cause horizontal scrolling, or hide the detail values (title/name, tags, actors, URL, info) and the Edit/Close actions on any supported viewport. An entity with no cover, or whose cover file is missing or unreadable, SHALL show the existing placeholder in the enlarged cover area rather than an empty or broken region.
+
+#### Scenario: Cover is shown large in the detail dialog
+- **WHEN** the user opens the detail dialog of an entity with a saved cover
+- THEN the cover renders at a substantially larger size than in the list, the whole image is visible, and its proportions are preserved
+
+#### Scenario: Small cover is not upscaled
+- **WHEN** the stored cover image's pixel dimensions are smaller than the space available for it in the detail dialog
+- THEN the image is displayed at no more than its stored resolution (no blurring from upscaling)
+
+#### Scenario: Detail stays usable on a narrow viewport
+- **WHEN** the detail dialog opens on a narrow (mobile-width) viewport with an enlarged cover
+- THEN the dialog has no horizontal overflow, and the detail values and Edit/Close actions remain reachable by scrolling within the dialog
+
+#### Scenario: Missing or unreadable cover keeps the placeholder
+- **WHEN** the user opens the detail dialog of an entity whose cover is absent or whose cover file fails to load
+- THEN the enlarged cover area shows the existing "?" placeholder and the dialog remains fully usable
+
 ### Requirement: Add and edit forms
 Selecting an entry SHALL open an entry detail dialog (see "Entry detail dialog"); the detail dialog's Edit action SHALL open the edit form for that entity as a dialog stacked above it. The view SHALL provide a way to open an empty add form as a dialog over the list directly (no detail dialog for an unsaved entity). All forms SHALL render as dialogs layered over the list, which stays mounted underneath, rather than replacing the list view. Forms cover all schema fields of the respective entity, including a cover picker (choose image file, preview after deforming) and actor selection for a movie's `actorIds`, presented as a select control shared with the list's actor filter (multi-select in the form). A movie SHALL NOT save with an empty `actorIds`: on a save attempt with no actor selected, the form SHALL show an inline validation error, keep the form open, and write nothing. The actor selection SHALL offer an "Unknown" fallback option in addition to the saved actor records; selecting it SHALL save the movie referencing a single shared "Unknown" actor record, which the system SHALL create on first use if it does not exist. The same "Unknown" label SHALL be used everywhere an entity has no usable name or cast.
 

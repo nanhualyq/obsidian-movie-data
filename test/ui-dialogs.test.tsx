@@ -77,6 +77,36 @@ describe("entry detail dialog", () => {
 		expect(document.querySelector(".movie-data-grid")).not.toBeNull();
 	});
 
+	it("detail dialog carries the detail-only class and shows the cover area (placeholder when no cover)", async () => {
+		seedJson({ movies: [{ ...MOVIE, cover: "" }], actors: [ACTOR] });
+		await renderApp();
+
+		fireEvent.click(cells()[0]);
+
+		const dlg = dialogs()[0];
+		// detail-only class widening the dialog for the enlarged cover
+		expect(dlg.classList.contains("movie-data-detail-dialog")).toBe(true);
+		const cover = document.querySelector(".movie-data-detail .movie-data-cover.is-placeholder");
+		expect(cover).not.toBeNull(); // no cover -> placeholder in the enlarged box
+		expect(cover!.textContent).toBe("?");
+		// grid thumbnails keep their own class; no detail-only class on the grid
+		expect(document.querySelector(".movie-data-grid .movie-data-detail-dialog")).toBeNull();
+	});
+
+	it("detail dialog shows the placeholder when the cover file is missing or corrupt", async () => {
+		seedJson({ movies: [{ ...MOVIE, cover: "bad.mcov" }], actors: [ACTOR] });
+		mem.files.set(`${COVERS_DIR}/bad.mcov`, Buffer.from([1, 2]));
+		await renderApp();
+
+		fireEvent.click(cells()[0]);
+
+		await waitFor(() => {
+			expect(document.querySelector(".movie-data-detail .movie-data-cover.is-placeholder")).not.toBeNull();
+		});
+		expect(document.querySelector(".movie-data-detail .movie-data-cover img")).toBeNull();
+		expect(dialogs()[0].open).toBe(true); // dialog stays fully usable
+	});
+
 	it("Edit stacks the form above the detail; both stay mounted", async () => {
 		seedJson({ movies: [MOVIE], actors: [ACTOR] });
 		await renderApp();

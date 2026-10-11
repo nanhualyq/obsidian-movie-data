@@ -40,7 +40,7 @@ export function EntityDetail({
 			(aid) => data.actors.find((a) => a.id === aid)?.name || UNKNOWN_ACTOR_NAME
 		);
 		return (
-			<Dialog label={movie.title || "Movie details"} onDismiss={onClose}>
+			<Dialog label={movie.title || "Movie details"} className="movie-data-detail-dialog" onDismiss={onClose}>
 				<div className="movie-data-detail">
 					<CoverImage store={store} filename={movie.cover} />
 					<div className="movie-data-detail-main">
@@ -89,7 +89,7 @@ export function EntityDetail({
 
 	if (kind === "actor" && actor) {
 		return (
-			<Dialog label={actor.name || "Actor details"} onDismiss={onClose}>
+			<Dialog label={actor.name || "Actor details"} className="movie-data-detail-dialog" onDismiss={onClose}>
 				<div className="movie-data-detail">
 					<CoverImage store={store} filename={actor.cover} />
 					<div className="movie-data-detail-main">
