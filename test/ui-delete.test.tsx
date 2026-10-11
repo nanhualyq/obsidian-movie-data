@@ -51,7 +51,8 @@ describe("delete movie from edit form", () => {
 		seed({ movies: [MOVIE], actors: [] }, { "m_1.mcov": PNG });
 		await renderApp();
 
-		fireEvent.click(cells()[0]);
+		fireEvent.click(cells()[0]); // detail dialog first (spec)
+		fireEvent.click(button("Edit")); // then the stacked edit form
 		expect(screen.getByText("Edit movie")).toBeTruthy();
 
 		// arm only - nothing written yet (spec: confirmation before anything is written)
@@ -82,7 +83,8 @@ describe("delete movie from edit form", () => {
 		await renderApp();
 		const jsonBefore = mem.files.get(JSON_PATH);
 
-		fireEvent.click(cells()[0]);
+		fireEvent.click(cells()[0]); // detail dialog first (spec)
+		fireEvent.click(button("Edit")); // then the stacked edit form
 		fireEvent.click(deleteBtn());
 		fireEvent.click(deleteBlock().getByRole("button", { name: "Cancel" }));
 
@@ -113,7 +115,8 @@ describe("delete movie from edit form", () => {
 		};
 
 		await renderApp();
-		fireEvent.click(cells()[0]);
+		fireEvent.click(cells()[0]); // detail dialog first (spec)
+		fireEvent.click(button("Edit")); // then the stacked edit form
 		fireEvent.click(deleteBtn());
 		fireEvent.click(screen.getByRole("button", { name: "Confirm delete?" }));
 
@@ -128,7 +131,8 @@ describe("delete movie from edit form", () => {
 		seed({ movies: [{ ...MOVIE, cover: "" }], actors: [] });
 		await renderApp();
 
-		fireEvent.click(cells()[0]);
+		fireEvent.click(cells()[0]); // detail dialog first (spec)
+		fireEvent.click(button("Edit")); // then the stacked edit form
 		fireEvent.click(deleteBtn());
 		fireEvent.click(screen.getByRole("button", { name: "Confirm delete?" }));
 
@@ -144,7 +148,8 @@ describe("delete actor from edit form", () => {
 		await renderApp();
 
 		fireEvent.click(button("Actors"));
-		fireEvent.click(cells()[0]);
+		fireEvent.click(cells()[0]); // detail dialog first (spec)
+		fireEvent.click(button("Edit")); // then the stacked edit form
 		expect(screen.getByText("Edit actor")).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Delete" })).toBeTruthy();
 
@@ -175,7 +180,8 @@ describe("delete actor from edit form", () => {
 		const jsonBefore = mem.files.get(JSON_PATH);
 
 		fireEvent.click(button("Actors"));
-		fireEvent.click(cells()[0]);
+		fireEvent.click(cells()[0]); // detail dialog first (spec)
+		fireEvent.click(button("Edit")); // then the stacked edit form
 
 		fireEvent.click(deleteBtn()); // attempt is enough - no confirmation offered
 

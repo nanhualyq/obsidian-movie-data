@@ -47,10 +47,11 @@ const json = () => JSON.parse(mem.files.get(JSON_PATH) as string);
 const coverPath = (name: string) => `${COVERS_DIR}/${name}`;
 const fileInput = () => form().querySelector('input[type="file"]') as HTMLInputElement;
 
-/** Open the existing movie's edit form and click "Remove cover". */
+/** Open the existing movie's detail dialog, then its stacked edit form. */
 async function openAndRemoveCover() {
 	await renderApp();
 	fireEvent.click(cells()[0]);
+	fireEvent.click(button("Edit"));
 	expect(screen.getByText("Edit movie")).toBeTruthy();
 	fireEvent.click(button("Remove cover"));
 }
@@ -58,6 +59,9 @@ async function openAndRemoveCover() {
 async function saveAndWaitBackToList() {
 	fireEvent.click(button("Save"));
 	await waitFor(() => expect(screen.queryByText("Edit movie")).toBeNull());
+	// edit-save pops one level to the detail dialog; close it to reach the bare list
+	if (document.querySelector("dialog")) fireEvent.click(button("Close"));
+	await waitFor(() => expect(document.querySelector("dialog")).toBeNull());
 	await waitFor(() => expect(cells()).toHaveLength(1));
 }
 

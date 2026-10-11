@@ -166,15 +166,19 @@ describe("edit actor (4.2): single source, id reference", () => {
 		});
 		await renderApp();
 
-		// open actor edit via grid
+		// open actor detail via grid, then its stacked edit form
 		fireEvent.click(button("Actors"));
 		fireEvent.click(cells()[0]);
+		fireEvent.click(button("Edit"));
 		expect(screen.getByText("Edit actor")).toBeTruthy();
 
 		fireEvent.change(textInputs()[0], { target: { value: "Ana de Armas Prime" } });
 		fireEvent.click(button("Save"));
 
 		await waitFor(() => expect(screen.queryByText("Edit actor")).toBeNull());
+		// edit-save pops to the detail dialog; close it to continue on the bare list
+		fireEvent.click(button("Close"));
+		await waitFor(() => expect(document.querySelector("dialog")).toBeNull());
 		const j = JSON.parse(mem.files.get(JSON_PATH) as string);
 		expect(j.actors).toHaveLength(1); // edited in place, no duplicate row
 		expect(j.actors[0].name).toBe("Ana de Armas Prime");

@@ -213,6 +213,108 @@
 	padding: 32px 0;
 }
 
+/* --- Dialog overlays (change: add-detail-and-dialog-flows, design D2/D5) ---
+   The dialog itself never scrolls: the UA's default overflow would clip the
+   anchored dropdowns inside (tag suggestions, actor select). The body wrapper
+   is the scroll region instead. */
+dialog.movie-data-dialog {
+	padding: 0;
+	border: none;
+	background: transparent;
+	overflow: hidden;
+	width: min(640px, calc(100vw - 24px));
+	max-width: none;
+	max-height: calc(100vh - 24px);
+	margin: auto;
+	color: var(--text-normal);
+}
+
+dialog.movie-data-dialog::backdrop {
+	background: rgb(0 0 0 / 0.45);
+}
+
+.movie-data-dialog-body {
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	box-shadow: var(--shadow-l);
+	max-height: calc(100vh - 24px);
+	overflow-y: auto;
+	padding: 16px;
+}
+
+@media (max-width: 600px) {
+	dialog.movie-data-dialog {
+		width: calc(100vw - 12px);
+		max-height: calc(100vh - 12px);
+	}
+
+	.movie-data-dialog-body {
+		max-height: calc(100vh - 12px);
+	}
+}
+
+/* --- Detail dialog (change: add-detail-and-dialog-flows, spec: entry detail) --- */
+.movie-data-detail {
+	display: flex;
+	gap: 16px;
+	align-items: flex-start;
+}
+
+.movie-data-detail .movie-data-cover {
+	width: 140px;
+	flex: 0 0 140px;
+	border-radius: 4px;
+}
+
+.movie-data-detail-main {
+	flex: 1 1 auto;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.movie-data-detail-title {
+	margin: 0;
+	font-size: 1.3em;
+}
+
+.movie-data-detail-tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.movie-data-detail-meta {
+	font-size: 13px;
+	color: var(--text-muted);
+	overflow-wrap: anywhere;
+}
+
+.movie-data-detail-info {
+	font-size: 13px;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.movie-data-detail-actions {
+	display: flex;
+	gap: 8px;
+	margin-top: 6px;
+}
+
+@media (max-width: 600px) {
+	.movie-data-detail {
+		flex-direction: column;
+	}
+
+	.movie-data-detail .movie-data-cover {
+		width: 120px;
+		flex: 0 0 auto;
+	}
+}
+
 /* Forms */
 .movie-data-form {
 	max-width: 560px;

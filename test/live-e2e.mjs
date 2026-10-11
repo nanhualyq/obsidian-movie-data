@@ -232,15 +232,28 @@ async function main() {
     cells: document.querySelectorAll('.movie-data-cell').length,
     title: document.querySelector('.movie-data-cell-title')?.textContent,
     form: !!document.querySelector('.movie-data-form'),
+    dialog: !!document.querySelector('dialog'),
   })`));
-  ok(!jumped.form && jumped.cells === 1 && jumped.title === 'Blade Runner 2049' && jumped.sel === aid,
-     'live: actor jump filters movies, selects actor, opens no form');
+  ok(!jumped.form && !jumped.dialog && jumped.cells === 1 && jumped.title === 'Blade Runner 2049' && jumped.sel === aid,
+     'live: actor jump filters movies, selects actor, opens no dialog');
 
-  // --- cancel writes nothing ---
+  // --- detail dialog via real showModal; cancel from its edit form writes nothing ---
   const before = await js(`require('fs').readFileSync(app.vault.adapter.basePath + '/.movie-data/movies.json', 'utf8')`);
   await js(`document.querySelector('.movie-data-cell').click()`);
   await wait(300);
+  const det = JSON.parse(await js(`JSON.stringify({
+    open: !!document.querySelector('dialog')?.open,
+    form: !!document.querySelector('.movie-data-form'),
+    title: document.querySelector('.movie-data-detail-title')?.textContent,
+  })`));
+  ok(det.open && !det.form && det.title === 'Blade Runner 2049',
+     'live: cell click opens detail dialog (showModal), not the edit form');
+  await js(`[...document.querySelectorAll('.movie-data-detail-actions button')].find(b=>b.textContent==='Edit').click()`);
+  await wait(300);
   await js(`[...document.querySelectorAll('.movie-data-form-buttons button')].find(b=>b.textContent==='Cancel').click()`);
+  await wait(300);
+  // cancel popped one level to the detail; close it back to the list
+  await js(`[...document.querySelectorAll('.movie-data-detail-actions button')].find(b=>b.textContent==='Close').click()`);
   await wait(300);
   const after = await js(`require('fs').readFileSync(app.vault.adapter.basePath + '/.movie-data/movies.json', 'utf8')`);
   ok(before === after, 'live: cancel leaves movies.json untouched');
@@ -250,9 +263,14 @@ async function main() {
   await wait(200);
   await js(`document.querySelector('.movie-data-cell').click()`);
   await wait(300);
+  await js(`[...document.querySelectorAll('.movie-data-detail-actions button')].find(b=>b.textContent==='Edit').click()`);
+  await wait(300);
   await js(`(() => { const f = document.querySelector('.movie-data-form'); (${SET_VALUE})(f.querySelectorAll('input[type=text]')[0], 'Ana de Armas Prime'); })()`);
   await js(`[...document.querySelectorAll('.movie-data-form-buttons button')].find(b=>b.textContent==='Save').click()`);
   await wait(500);
+  // edit-save pops to the refreshed detail; close it to continue on the list
+  await js(`[...document.querySelectorAll('.movie-data-detail-actions button')].find(b=>b.textContent==='Close').click()`);
+  await wait(300);
   await js(`[...document.querySelectorAll('.movie-data-toolbar button')].find(b=>b.textContent==='Movies').click()`);
   await wait(200);
   const renamed = JSON.parse(await js(`JSON.stringify({

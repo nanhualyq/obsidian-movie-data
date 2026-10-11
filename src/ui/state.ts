@@ -46,8 +46,15 @@ export interface ListState {
 	page: number;
 }
 
-export type Mode =
-	| { kind: "list" }
+/**
+ * One entry in the dialog stack (change: add-detail-and-dialog-flows,
+ * design D1). The list is never an overlay - it stays mounted underneath.
+ * Invariant: at most one detail (bottom) plus at most one form above it.
+ * A detail stores only ids: the entity is resolved from `data` at render
+ * time, so a popped-back-to detail always shows post-save values.
+ */
+export type Overlay =
+	| { kind: "detail"; entity: "movie" | "actor"; id: string }
 	| { kind: "movie-form"; movie: Movie }
 	| { kind: "actor-form"; actor: Actor };
 

@@ -22,7 +22,7 @@ export function MovieCard({
 				<button
 					className="movie-data-jump"
 					onClick={(e) => {
-						// must not bubble: the cell's click opens the edit form
+						// must not bubble: the cell's click opens the detail dialog
 						e.stopPropagation();
 						onJumpActor(entry.id);
 					}}

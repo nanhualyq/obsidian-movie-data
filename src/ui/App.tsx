@@ -5,7 +5,9 @@ import type { MovieStoreData } from "../types";
 import { ListView } from "./components/ListView";
 import { MovieForm } from "./components/MovieForm";
 import { ActorForm } from "./components/ActorForm";
-import type { ListState, Mode } from "./state";
+import { Dialog } from "./components/Dialog";
+import { EntityDetail } from "./components/EntityDetail";
+import type { ListState, Overlay } from "./state";
 
 const EMPTY_LIST: ListState = { actorFilter: "", entityFilter: "movies", selectedTags: new Set<string>(), page: 1 };
 
@@ -28,11 +30,15 @@ export function staleCovers(prev: MovieStoreData, next: MovieStoreData): string[
 /**
  * Root component: owns all application state (design D2) and the load
  * lifecycle (D3). Business data lives here - MovieStore is pure I/O.
+ *
+ * UI state is a dialog stack (change: add-detail-and-dialog-flows, D1): the
+ * list stays mounted underneath every overlay, and every close path funnels
+ * through pop()/clearStack() below.
  */
 export function App({ store }: { store: MovieStore }) {
 	const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
 	const [data, setData] = useState<MovieStoreData>({ movies: [], actors: [] });
-	const [mode, setMode] = useState<Mode>({ kind: "list" });
+	const [overlays, setOverlays] = useState<Overlay[]>([]);
 	const [list, setList] = useState<ListState>(EMPTY_LIST);
 
 	useEffect(() => {
@@ -49,6 +55,31 @@ export function App({ store }: { store: MovieStore }) {
 		return () => {
 			alive = false;
 		};
+	}, [store]);
+
+	/** Push an overlay: open detail, open edit (stacked over detail), open add. */
+	const push = useCallback((overlay: Overlay) => setOverlays((prev) => [...prev, overlay]), []);
+
+	/**
+	 * Pop the top overlay - the single funnel for Cancel, Escape, backdrop,
+	 * and Save (design D1). None of these paths write anything, so staged
+	 * covers are dropped here (spec: explicit persistence); after a
+	 * successful save the store has already discarded them (no-op).
+	 */
+	const pop = useCallback(() => {
+		store.discardStaged();
+		setOverlays((prev) => prev.slice(0, -1));
+	}, [store]);
+
+	/**
+	 * Delete path (design D2): clears the WHOLE stack, not just the form -
+	 * a detail below would reference the removed entity. Staged covers are
+	 * dropped so this save never writes them (spec: staged-but-unsaved
+	 * covers must not be written by this save).
+	 */
+	const clearStack = useCallback(() => {
+		store.discardStaged();
+		setOverlays([]);
 	}, [store]);
 
 	/** D4: sequential save - persist first, update state only on success. */
@@ -76,17 +107,12 @@ export function App({ store }: { store: MovieStore }) {
 			// Returning to the list after a save: land on page 1 so a new entity
 			// (newest-first) is visible without hunting for it.
 			setList((prev) => (prev.page === 1 ? prev : { ...prev, page: 1 }));
-			setMode({ kind: "list" });
+			// Pop the form: add-save lands on the list, edit-save on the detail.
+			pop();
 			return true;
 		},
-		[store, data]
+		[store, data, pop]
 	);
-
-	/** Cancel path: drop staged covers, write nothing (spec: explicit persistence). */
-	const cancel = useCallback(() => {
-		store.discardStaged();
-		setMode({ kind: "list" });
-	}, [store]);
 
 	/**
 	 * D2: delete path - persist the filtered dataset first (movies.json), then
@@ -113,10 +139,10 @@ export function App({ store }: { store: MovieStore }) {
 				}
 			}
 			setData(next);
-			setMode({ kind: "list" });
+			clearStack();
 			return true;
 		},
-		[store]
+		[store, clearStack]
 	);
 
 	if (status === "error") {
@@ -133,18 +159,56 @@ export function App({ store }: { store: MovieStore }) {
 
 	if (status === "loading") return null;
 
-	if (mode.kind === "movie-form") {
-		return (
-			<MovieForm store={store} data={data} movie={mode.movie} commit={commit} remove={remove} onCancel={cancel} />
-		);
-	}
-	if (mode.kind === "actor-form") {
-		return (
-			<ActorForm store={store} data={data} actor={mode.actor} commit={commit} remove={remove} onCancel={cancel} />
-		);
-	}
-
 	return (
-		<ListView store={store} data={data} list={list} setList={setList} setMode={setMode} />
+		<>
+			<ListView store={store} data={data} list={list} setList={setList} push={push} />
+			{overlays.map((overlay) => {
+				if (overlay.kind === "detail") {
+					return (
+						<EntityDetail
+							key={`detail:${overlay.entity}:${overlay.id}`}
+							kind={overlay.entity}
+							id={overlay.id}
+							data={data}
+							store={store}
+							onEdit={push}
+							onClose={pop}
+						/>
+					);
+				}
+				const isNew =
+					overlay.kind === "movie-form"
+						? !data.movies.some((m) => m.id === overlay.movie.id)
+						: !data.actors.some((a) => a.id === overlay.actor.id);
+				const kindWord = overlay.kind === "movie-form" ? "movie" : "actor";
+				return (
+					<Dialog
+						key={overlay.kind === "movie-form" ? `form:${overlay.movie.id}` : `form:${overlay.actor.id}`}
+						label={`${isNew ? "Add" : "Edit"} ${kindWord}`}
+						onDismiss={pop}
+					>
+						{overlay.kind === "movie-form" ? (
+							<MovieForm
+								store={store}
+								data={data}
+								movie={overlay.movie}
+								commit={commit}
+								remove={remove}
+								onCancel={pop}
+							/>
+						) : (
+							<ActorForm
+								store={store}
+								data={data}
+								actor={overlay.actor}
+								commit={commit}
+								remove={remove}
+								onCancel={pop}
+							/>
+						)}
+					</Dialog>
+				);
+			})}
+		</>
 	);
 }

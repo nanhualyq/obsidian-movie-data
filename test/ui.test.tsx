@@ -176,6 +176,7 @@ describe("list: actor jump", () => {
 		fireEvent.click(keanuCell.querySelector(".movie-data-jump")!);
 
 		expect(document.querySelector(".movie-data-form")).toBeNull(); // edit form did NOT open
+		expect(document.querySelector("dialog")).toBeNull(); // nor the detail dialog
 		expect(document.querySelector(".movie-data-actor-select")).not.toBeNull(); // movies view
 		expect(actorSelect().value).toBe("a_1");
 		expect(cells()).toHaveLength(1); // Amelie excluded by the actor filter
@@ -257,7 +258,8 @@ describe("list: pagination", () => {
 		expect(pageLabel()).toBe("3 / 3");
 		expect(cells()).toHaveLength(1);
 
-		fireEvent.click(cells()[0]); // edit form
+		fireEvent.click(cells()[0]); // detail dialog
+		fireEvent.click(button("Edit")); // stacked edit form
 		fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 		fireEvent.click(screen.getByRole("button", { name: "Confirm delete?" }));
 		await waitFor(() => expect(screen.queryByText("Edit movie")).toBeNull());
@@ -397,7 +399,7 @@ describe("list: mobile hide-on-scroll", () => {
 		expect(root.style.getPropertyValue("--movie-data-ft")).toBe("44px");
 	});
 
-	it("page change, filter change, and form round-trip restore the bars", async () => {
+	it("page change and filter change restore the bars; a dialog round-trip preserves them hidden", async () => {
 		Platform.isMobile = true;
 		seedJson({
 			movies: Array.from({ length: 140 }, (_, i) => ({
@@ -415,7 +417,7 @@ describe("list: mobile hide-on-scroll", () => {
 		let top = 0;
 		const hide = async () => {
 			top += 100; // monotonically increasing so every delta is "down"
-			const { header, scroll } = bars(); // re-query: the form round-trip remounts
+			const { header, scroll } = bars(); // re-query: bar refs can change per render
 			mockScrollTop(scroll, top);
 			fireEvent.scroll(scroll);
 			await waitFor(() => expect(hidden(header)).toBe(true));
@@ -434,9 +436,19 @@ describe("list: mobile hide-on-scroll", () => {
 		await expectShown();
 
 		await hide();
-		fireEvent.click(cells()[0]); // open the edit form (list unmounts)
-		fireEvent.click(button("Cancel")); // remount: fresh state
-		await expectShown();
+		fireEvent.click(cells()[0]); // detail dialog (list stays mounted beneath)
+		fireEvent.click(button("Edit")); // stacked edit form
+		fireEvent.click(button("Cancel")); // pop back to the detail
+		fireEvent.click(button("Close")); // pop to the list
+		// no remount happened: the hidden-bars state survives the round-trip
+		expect(hidden(bars().header)).toBe(true);
+		expect(hidden(bars().footer)).toBe(true);
+		// scrolling up restores them as usual
+		const restored = bars();
+		mockScrollTop(restored.scroll, 0);
+		fireEvent.scroll(restored.scroll);
+		await waitFor(() => expect(hidden(restored.header)).toBe(false));
+		expect(hidden(restored.footer)).toBe(false);
 	});
 });
 

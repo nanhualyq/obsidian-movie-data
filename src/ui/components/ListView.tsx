@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, t
 import { Platform } from "obsidian";
 import { newId, type MovieStore } from "../../store";
 import type { MovieStoreData } from "../../types";
-import { computeResults, tagHistory, PAGE_SIZE, type ListState, type Mode } from "../state";
+import { computeResults, tagHistory, PAGE_SIZE, type GridEntry, type ListState, type Overlay } from "../state";
 import { ActorSelect } from "./ActorSelect";
 import { MovieGrid } from "./MovieGrid";
 import { PaginationBar } from "./PaginationBar";
@@ -17,13 +17,14 @@ export function ListView({
 	data,
 	list,
 	setList,
-	setMode,
+	push,
 }: {
 	store: MovieStore;
 	data: MovieStoreData;
 	list: ListState;
 	setList: Dispatch<SetStateAction<ListState>>;
-	setMode: (mode: Mode) => void;
+	/** Push an overlay onto App's dialog stack (detail / form). */
+	push: (overlay: Overlay) => void;
 }) {
 	// Mobile hide-on-scroll (spec: header and footer hide on scroll): direction
 	// detector on the grid's scroll region. Desktop never hides (gated below).
@@ -103,28 +104,22 @@ export function ListView({
 				: "No actors yet. Add one!";
 
 	const openAdd = () => {
+		// Add flows skip the detail dialog: push the form onto the bare list (spec).
 		if (list.entityFilter === "movies") {
-			setMode({
+			push({
 				kind: "movie-form",
 				movie: { id: newId("m"), title: "", cover: "", tags: [], actorIds: [], info: "", url: "" },
 			});
 		} else {
-			setMode({
+			push({
 				kind: "actor-form",
 				actor: { id: newId("a"), name: "", cover: "", info: "", url: "" },
 			});
 		}
 	};
 
-	const openEntry = (entry: ReturnType<typeof computeResults>[number]) => {
-		if (entry.kind === "movie") {
-			const fresh = data.movies.find((m) => m.id === entry.id);
-			if (fresh) setMode({ kind: "movie-form", movie: { ...fresh, tags: [...fresh.tags], actorIds: [...fresh.actorIds] } });
-		} else {
-			const fresh = data.actors.find((a) => a.id === entry.id);
-			if (fresh) setMode({ kind: "actor-form", actor: { ...fresh } });
-		}
-	};
+	/** Clicking a cell opens the read-only detail dialog, never the form (spec). */
+	const openEntry = (entry: GridEntry) => push({ kind: "detail", entity: entry.kind, id: entry.id });
 
 	/** Jump from an actor entry to its movies, filtered to that actor only. */
 	const jumpToActor = (actorId: string) =>
