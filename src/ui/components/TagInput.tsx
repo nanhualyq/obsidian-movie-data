@@ -5,15 +5,42 @@ import type { TagCount } from "../state";
 const MAX_SUGGESTIONS = 10;
 
 /**
+ * Historical tags not already present as chips: a chipped tag would be a
+ * dead row (Enter on it no-ops in `withTag`), so it never gets suggested
+ * (design D2; change: keep-tag-dropdown-open-after-enter).
+ */
+const pickableTags = (history: TagCount[], chips: string[]): TagCount[] =>
+	history.filter((e) => !chips.some((t) => t.toLowerCase() === e.tag.toLowerCase()));
+
+/**
+ * Suggestions for an already-lowercased query over pickable tags.
+ * Cap applies unfiltered only (design D5): typing is the path to tags
+ * outside the top 10, so filtering runs over the full history.
+ */
+const poolFor = (pickable: TagCount[], q: string): TagCount[] =>
+	q ? pickable.filter((e) => e.tag.toLowerCase().includes(q)) : pickable.slice(0, MAX_SUGGESTIONS);
+
+/** Chip list with `raw` added (trimmed, case-insensitive dedupe), or `tags` unchanged. */
+const withTag = (tags: string[], raw: string): string[] => {
+	const tag = raw.trim();
+	if (!tag) return tags;
+	if (tags.some((t) => t.toLowerCase() === tag.toLowerCase())) return tags;
+	return [...tags, tag];
+};
+
+/**
  * Chip-based tag input (change: tag-input-with-history).
  *
  * - Chips instead of typed separators; controlled via `value`/`onChange`.
  * - Focus opens a suggestion dropdown from the shared tag history: top 10 by
  *   frequency, first entry pre-highlighted (zero-typing path = focus + Enter).
- * - Typing filters by case-insensitive substring, frequency order preserved.
+ * - Typing filters by case-insensitive substring, frequency order preserved;
+ *   tags already present as chips are never suggested (design D2).
  * - Keyboard-first: arrows wrap the highlight, Enter commits suggestion or
- *   typed text, Escape closes keeping text, Backspace on empty input removes
- *   the last chip, Tab unbound, blur closes keeping state (design D3).
+ *   typed text and keeps the dropdown open (first remaining suggestion
+ *   highlighted - change: keep-tag-dropdown-open-after-enter), Escape and
+ *   blur are the only close paths, Backspace on empty input removes the
+ *   last chip, Tab unbound (design D3).
  * - Adds are trimmed and deduplicated case-insensitively (existing chip wins,
  *   design D4); pasted text splits on half/full-width commas only.
  */
@@ -31,30 +58,26 @@ export function TagInput({
 	const [activeIdx, setActiveIdx] = useState(-1);
 
 	const query = inputText.trim().toLowerCase();
-	// Cap applies unfiltered only (design D5): typing is the path to tags
-	// outside the top 10, so filtering runs over the full history.
-	const matches = useMemo(
-		() => (query ? history.filter((e) => e.tag.toLowerCase().includes(query)) : history.slice(0, MAX_SUGGESTIONS)),
-		[history, query]
-	);
-
-	/** Case-insensitive idempotent add: the existing chip's casing wins. */
-	const addTag = (raw: string) => {
-		const tag = raw.trim();
-		if (!tag) return;
-		if (value.some((t) => t.toLowerCase() === tag.toLowerCase())) return;
-		onChange([...value, tag]);
-	};
+	const pickable = useMemo(() => pickableTags(history, value), [history, value]);
+	// Single source of truth (design D3): the rendered list and the highlight
+	// pre-computation in onTextChange/commitTag all read this derivation.
+	const matches = useMemo(() => poolFor(pickable, query), [pickable, query]);
 
 	const removeLast = () => onChange(value.slice(0, -1));
 
-	/** Commit the highlighted suggestion, else the typed text; then reset. */
-	const commit = () => {
-		const picked = open && activeIdx >= 0 ? matches[activeIdx]?.tag : undefined;
-		addTag(picked ?? inputText);
+	/**
+	 * Add `raw` (trimmed, case-insensitive dedupe - the existing chip's casing
+	 * wins), clear the text, and reset the highlight to the first remaining
+	 * suggestion. Commit never closes the dropdown: it stays open until Escape
+	 * or blur (design D1/D4), so Enter can be pressed repeatedly to walk down
+	 * the list. When the dropdown is already closed (post-Escape Enter), it
+	 * stays closed.
+	 */
+	const commitTag = (raw: string) => {
+		const next = withTag(value, raw);
+		if (next !== value) onChange(next);
 		setInputText("");
-		setOpen(false);
-		setActiveIdx(-1);
+		if (open) setActiveIdx(pickableTags(history, next).length > 0 ? 0 : -1);
 	};
 
 	const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -62,7 +85,8 @@ export function TagInput({
 			// Bound only while open (design D3 risk: no form exists here, but
 			// Enter must not leak to other handlers mid-selection).
 			if (open) e.preventDefault();
-			commit();
+			const picked = open && activeIdx >= 0 ? matches[activeIdx]?.tag : undefined;
+			commitTag(picked ?? inputText);
 			return;
 		}
 		if (e.key === "Escape") {
@@ -91,10 +115,9 @@ export function TagInput({
 	const onTextChange = (next: string) => {
 		setInputText(next);
 		setOpen(true);
-		// Refilter on every keystroke: pre-highlight best match (design D2).
-		const q = next.trim().toLowerCase();
-		const pool = q ? history.filter((e) => e.tag.toLowerCase().includes(q)) : history.slice(0, MAX_SUGGESTIONS);
-		setActiveIdx(pool.length > 0 ? 0 : -1);
+		// Refilter on every keystroke: pre-highlight best match (design D2),
+		// through the same derivation the rendered list uses (design D3).
+		setActiveIdx(poolFor(pickable, next.trim().toLowerCase()).length > 0 ? 0 : -1);
 	};
 
 	const onPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
@@ -170,12 +193,9 @@ export function TagInput({
 								// Keep focus in the input so blur doesn't close the
 								// dropdown before this click registers.
 								onMouseDown={(e) => e.preventDefault()}
-								onClick={() => {
-									addTag(m.tag);
-									setInputText("");
-									setOpen(false);
-									setActiveIdx(-1);
-								}}
+								// Same post-commit state as Enter (design D1: the
+								// open/close rule is source-independent).
+								onClick={() => commitTag(m.tag)}
 							>
 								{m.tag}
 							</li>
