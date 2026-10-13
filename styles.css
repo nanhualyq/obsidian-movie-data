@@ -6,6 +6,17 @@
    widths - a reflow the spec forbids. Clipped + non-scrollable = stable. */
 .workspace-leaf-content .view-content.movie-data-root {
 	height: 100%;
+	/* Mobile navbar clearance (change: mobile-navbar-clearance): reserve the
+      navbar strip as a flex margin, not a height subtraction. The leaf-content
+      is an unconditional flex column and an in-flow sibling (view-header,
+      ~92px on the test device) sits above this root: a height subtraction is
+      absorbed by the flex algorithm (gap = clear - sibling, i.e. nothing when
+      the sibling is taller than the clearance), while margin-bottom always
+      resolves to gap == margin regardless of siblings or grow/shrink - the
+      flex shrink resolves the outer size (100% + margin) against the free
+      space. See design D1. Fallback 0px keeps every non-overlay layout
+      identical (design D3). */
+	margin-bottom: calc(var(--movie-data-navbar-clear, 0px));
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
@@ -68,6 +79,29 @@
 
 .movie-data-footer.is-overlay.is-hidden-bars {
 	transform: translateY(100%);
+}
+
+/* --- Mobile navbar clearance (change: mobile-navbar-clearance, spec: list
+   stays clear of an overlaying mobile navigation bar) ---
+   On phones where Obsidian's .mobile-navbar is a fixed overlay (floating nav
+   or auto full screen), the leaf runs to the screen bottom and the navbar
+   covers the overlay footer at bottom: 0. Shrinking the root (height rule on
+   .movie-data-root above) lifts all three regions above the navbar at once,
+   and the root's overflow: hidden clips the hidden-on-scroll footer so it
+   cannot peek beside the narrow navbar pill (design D1). The var's 0px
+   fallback keeps every other layout - desktop, tablet, non-overlay phones -
+   at height: 100% (design D3), so no body.is-mobile gate is needed. */
+body.is-phone.is-floating-nav .movie-data-root,
+body.is-phone.auto-full-screen .movie-data-root {
+	/* Exact occupied strip = navbar height + its margin lift
+      (navbar-bottom-offset - keyboard-height - 2px), mirroring Obsidian's
+      .mobile-navbar rules. Deliberately not --view-bottom-spacing, which
+      under-reserves by up to 10px when safe-area-inset-bottom is 0 (Android
+      three-button navigation; --size-4-3 measures 12px) - see design D2. */
+	--movie-data-navbar-clear: calc(
+		var(--navbar-height, 0px) + var(--navbar-bottom-offset, 0px) -
+			var(--keyboard-height, 0px) - 2px
+	);
 }
 
 .movie-data-pagination {
@@ -509,3 +543,4 @@ dialog.movie-data-dialog::backdrop {
 	color: var(--text-warning);
 	font-size: var(--font-ui-smaller);
 }
+
