@@ -26,8 +26,11 @@ export class ItemView {
 
 export class Notice {
 	static last = "";
+	/** Total constructions - lets tests assert "notified once" patterns. */
+	static count = 0;
 	constructor(public message: string) {
 		Notice.last = message;
+		Notice.count++;
 	}
 }
 

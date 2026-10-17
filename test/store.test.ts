@@ -35,6 +35,7 @@ describe("ensure (fresh install)", () => {
 		expect(JSON.parse(mem.files.get(JSON_PATH) as string)).toEqual({
 			movies: [],
 			actors: [],
+			note: "",
 		});
 	});
 });
@@ -43,7 +44,15 @@ describe("load", () => {
 	it("returns ok with data on a fresh install", async () => {
 		await store.ensure();
 		const res = await store.load();
-		expect(res).toEqual({ ok: true, data: { movies: [], actors: [] } });
+		expect(res).toEqual({ ok: true, data: { movies: [], actors: [], note: "" } });
+	});
+
+	it("defaults note to \"\" for a legacy file without the note field", async () => {
+		mem.files.set(JSON_PATH, JSON.stringify({ movies: [], actors: [] }));
+		const res = await store.load();
+		expect(res).toEqual({ ok: true, data: { movies: [], actors: [], note: "" } });
+		// load must not rewrite the legacy file
+		expect(JSON.parse(mem.files.get(JSON_PATH) as string)).not.toHaveProperty("note");
 	});
 
 	it("returns ok:false for corrupt JSON (no throw)", async () => {
@@ -140,6 +149,27 @@ describe("save (explicit persistence)", () => {
 		store.discardStaged();
 		await store.save({ movies: [], actors: [] });
 		expect(mem.files.has(`${COVERS_DIR}/m_9.mcov`)).toBe(false);
+	});
+});
+
+describe("saveData (JSON-only note-autosave path)", () => {
+	it("writes movies.json without writing a staged cover", async () => {
+		await store.ensure();
+		mem.writes.length = 0;
+		store.stageCover("m_9", new Uint8Array([1, 2, 3]));
+		await store.saveData({ movies: [], actors: [], note: "hello" });
+		expect(mem.writes).toEqual([JSON_PATH]);
+		expect(mem.files.has(`${COVERS_DIR}/m_9.mcov`)).toBe(false);
+		expect(JSON.parse(mem.files.get(JSON_PATH) as string).note).toBe("hello");
+	});
+
+	it("leaves the staged cover pending for a later form save", async () => {
+		await store.ensure();
+		store.stageCover("m_9", new Uint8Array([1, 2, 3]));
+		await store.saveData({ movies: [], actors: [], note: "typed" });
+		// the form's explicit save still writes the pending cover
+		await store.save({ movies: [], actors: [], note: "typed" });
+		expect(mem.files.has(`${COVERS_DIR}/m_9.mcov`)).toBe(true);
 	});
 });
 

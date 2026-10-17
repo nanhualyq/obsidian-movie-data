@@ -1,6 +1,9 @@
 import type { Actor, Movie } from "../types";
 
-export type EntityFilter = "movies" | "actors";
+/** Top-level tab of the view (design D2): two list tabs plus the notes editor. */
+export type Tab = "movies" | "actors" | "notes";
+/** The tabs that show the list (everything except Notes). */
+export type ListTab = Exclude<Tab, "notes">;
 
 /** Fixed page size for the list (spec: one constant for all viewports). */
 export const PAGE_SIZE = 60;
@@ -40,7 +43,6 @@ export function tagHistory(movies: Movie[]): TagCount[] {
 export interface ListState {
 	/** Actor id to filter movies by; "" = all actors (no actor filter). */
 	actorFilter: string;
-	entityFilter: EntityFilter;
 	selectedTags: Set<string>;
 	/** 1-based current page; reset to 1 on filter change and after a save. */
 	page: number;
@@ -97,11 +99,12 @@ function byNewestFirst(a: GridEntry, b: GridEntry): number {
 export function computeResults(
 	movies: Movie[],
 	actors: Actor[],
-	list: ListState
+	list: ListState,
+	view: ListTab
 ): GridEntry[] {
 	const out: GridEntry[] = [];
 
-	if (list.entityFilter === "movies") {
+	if (view === "movies") {
 		for (const m of movies) {
 			if (list.selectedTags.size > 0 && !m.tags.some((t) => list.selectedTags.has(t))) continue;
 			if (list.actorFilter && !m.actorIds.includes(list.actorFilter)) continue;

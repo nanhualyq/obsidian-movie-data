@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, t
 import { Platform } from "obsidian";
 import { newId, type MovieStore } from "../../store";
 import type { MovieStoreData } from "../../types";
-import { computeResults, tagHistory, PAGE_SIZE, type GridEntry, type ListState, type Overlay } from "../state";
+import { computeResults, tagHistory, PAGE_SIZE, type GridEntry, type ListState, type ListTab, type Overlay, type Tab } from "../state";
 import { ActorSelect } from "./ActorSelect";
 import { MovieGrid } from "./MovieGrid";
 import { PaginationBar } from "./PaginationBar";
@@ -18,6 +18,8 @@ export function ListView({
 	list,
 	setList,
 	push,
+	view,
+	onSwitchTab,
 }: {
 	store: MovieStore;
 	data: MovieStoreData;
@@ -25,6 +27,10 @@ export function ListView({
 	setList: Dispatch<SetStateAction<ListState>>;
 	/** Push an overlay onto App's dialog stack (detail / form). */
 	push: (overlay: Overlay) => void;
+	/** Which list tab is active (movies/actors - never notes). */
+	view: ListTab;
+	/** Switch the App-level tab (actor jump: back to the Movies tab). */
+	onSwitchTab: (tab: Tab) => void;
 }) {
 	// Mobile hide-on-scroll (spec: header and footer hide on scroll): direction
 	// detector on the grid's scroll region. Desktop never hides (gated below).
@@ -69,16 +75,16 @@ export function ListView({
 		return () => window.removeEventListener("resize", apply);
 	});
 
-	const entries = useMemo(() => computeResults(data.movies, data.actors, list), [data, list]);
+	const entries = useMemo(() => computeResults(data.movies, data.actors, list, view), [data, list, view]);
 
 	// Tag chips derive from the shared tag history (same source as the form's
 	// suggestions), alphabetical here to keep the chip row stable.
 	const tags = useMemo(() => {
-		if (list.entityFilter !== "movies") return [];
+		if (view !== "movies") return [];
 		return tagHistory(data.movies)
 			.map((e) => e.tag)
 			.sort((a, b) => a.localeCompare(b));
-	}, [data.movies, list.entityFilter]);
+	}, [data.movies, view]);
 
 	// Pagination (spec: paginated list display): clamp the stored page into the
 	// available range, so a shrunken result set shows its last page, never none.
@@ -99,13 +105,13 @@ export function ListView({
 	const emptyText =
 		list.selectedTags.size > 0 || list.actorFilter
 			? "No results"
-			: list.entityFilter === "movies"
+			: view === "movies"
 				? "No movies yet. Add one!"
 				: "No actors yet. Add one!";
 
 	const openAdd = () => {
 		// Add flows skip the detail dialog: push the form onto the bare list (spec).
-		if (list.entityFilter === "movies") {
+		if (view === "movies") {
 			push({
 				kind: "movie-form",
 				movie: { id: newId("m"), title: "", cover: "", tags: [], actorIds: [], info: "", url: "" },
@@ -122,8 +128,10 @@ export function ListView({
 	const openEntry = (entry: GridEntry) => push({ kind: "detail", entity: entry.kind, id: entry.id });
 
 	/** Jump from an actor entry to its movies, filtered to that actor only. */
-	const jumpToActor = (actorId: string) =>
-		setFilter(() => ({ entityFilter: "movies", actorFilter: actorId, selectedTags: new Set<string>() }));
+	const jumpToActor = (actorId: string) => {
+		onSwitchTab("movies"); // App-level tab switch (spec: jump switches to the Movies tab)
+		setFilter(() => ({ actorFilter: actorId, selectedTags: new Set<string>() }));
+	};
 
 	return (
 		<>
@@ -133,12 +141,8 @@ export function ListView({
 				}
 				ref={headerRef}
 			>
-				<Toolbar
-					entityFilter={list.entityFilter}
-					onEntityFilter={(f) => setFilter(() => ({ entityFilter: f }))}
-					onAdd={openAdd}
-				/>
-				{list.entityFilter === "movies" && (
+				<Toolbar view={view} onAdd={openAdd} />
+				{view === "movies" && (
 					<ActorSelect
 						mode="single"
 						actors={data.actors}
@@ -147,7 +151,7 @@ export function ListView({
 					/>
 				)}
 				<TagFilter
-					hidden={list.entityFilter !== "movies"}
+					hidden={view !== "movies"}
 					tags={tags}
 					selectedTags={list.selectedTags}
 					onToggle={(tag) =>
@@ -166,7 +170,7 @@ export function ListView({
 					store={store}
 					emptyText={emptyText}
 					onSelect={openEntry}
-					onJumpActor={list.entityFilter === "actors" ? jumpToActor : undefined}
+					onJumpActor={view === "actors" ? jumpToActor : undefined}
 				/>
 			</div>
 			<div

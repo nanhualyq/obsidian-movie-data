@@ -19,4 +19,6 @@ export interface Actor {
 export interface MovieStoreData {
 	movies: Movie[];
 	actors: Actor[];
+	/** The vault's single plain-text note (spec: JSON schema). */
+	note: string;
 }

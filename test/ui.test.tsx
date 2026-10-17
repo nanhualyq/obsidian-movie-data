@@ -462,3 +462,61 @@ describe("load error screen", () => {
 		expect(document.querySelector(".movie-data-toolbar")).toBeNull();
 	});
 });
+
+describe("tabs (three-tab entity navigation)", () => {
+	const activeTab = () => document.querySelector(".movie-data-tab.is-active")?.textContent;
+	const pageLabel = () => document.querySelector(".movie-data-page-label")!.textContent;
+
+	it("renders three tabs with only the active one indicated", async () => {
+		seedJson({ movies: MOVIES, actors: [ACTOR] });
+		await renderApp();
+		const tabs = Array.from(document.querySelectorAll(".movie-data-tab"));
+		expect(tabs.map((t) => t.textContent)).toEqual(["Movies", "Actors", "Notes"]);
+		expect(activeTab()).toBe("Movies");
+		fireEvent.click(button("Actors"));
+		expect(activeTab()).toBe("Actors");
+		fireEvent.click(button("Notes"));
+		expect(activeTab()).toBe("Notes");
+	});
+
+	it("switching between list tabs writes nothing to disk", async () => {
+		seedJson({ movies: MOVIES, actors: [ACTOR] });
+		await renderApp();
+		expect(mem.writes).toHaveLength(0); // seedJson bypasses the store
+		fireEvent.click(button("Actors"));
+		fireEvent.click(button("Movies"));
+		expect(mem.writes).toHaveLength(0);
+	});
+
+	it("returns to page 1 with filters preserved after a tab switch", async () => {
+		const many = Array.from({ length: 61 }, (_, i) => ({
+			id: `mx${i}`,
+			title: `M${i}`,
+			cover: "",
+			tags: ["bulk"],
+			actorIds: [],
+			info: "",
+			url: "",
+		}));
+		seedJson({ movies: many, actors: [ACTOR] });
+		await renderApp();
+		fireEvent.click(button("bulk")); // filter first: a filter change lands on page 1
+		fireEvent.click(button("Next"));
+		expect(pageLabel()).toContain("2 /");
+		fireEvent.click(button("Actors"));
+		fireEvent.click(button("Movies"));
+		expect(pageLabel()).toContain("1 /"); // tab switch resets pagination
+		expect(button("bulk").className).toContain("is-active"); // filters preserved
+		expect(actorSelect().value).toBe("");
+	});
+
+	it("the actor jump lands on the Movies tab", async () => {
+		seedJson({ movies: MOVIES, actors: [ACTOR, ACTOR_NO_MOVIES] });
+		await renderApp();
+		fireEvent.click(button("Actors"));
+		const keanuCell = cells().find((c) => c.textContent!.includes("Keanu Reeves"))!;
+		fireEvent.click(keanuCell.querySelector(".movie-data-jump")!);
+		expect(activeTab()).toBe("Movies");
+		expect(actorSelect().value).toBe("a_1");
+	});
+});

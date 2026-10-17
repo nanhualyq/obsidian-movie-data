@@ -61,7 +61,7 @@ export class MovieStore {
 			await this.adapter.mkdir(COVERS_DIR);
 		}
 		if (!(await this.adapter.exists(JSON_PATH))) {
-			await this.adapter.write(JSON_PATH, JSON.stringify({ movies: [], actors: [] }, null, 2));
+			await this.adapter.write(JSON_PATH, JSON.stringify({ movies: [], actors: [], note: "" }, null, 2));
 		}
 	}
 
@@ -76,7 +76,10 @@ export class MovieStore {
 			if (!parsed || !Array.isArray(parsed.movies) || !Array.isArray(parsed.actors)) {
 				throw new Error("movies.json has unexpected shape");
 			}
-			return { ok: true, data: { movies: parsed.movies, actors: parsed.actors } };
+			// Legacy files (pre-note) load with an empty note (spec: file predating
+			// the note field loads); no rewrite happens here.
+			const note = typeof parsed.note === "string" ? parsed.note : "";
+			return { ok: true, data: { movies: parsed.movies, actors: parsed.actors, note } };
 		} catch (e) {
 			console.error("movie-data: failed to load movies.json", e);
 			return { ok: false };
@@ -113,6 +116,15 @@ export class MovieStore {
 			this.invalidateCover(filename);
 		}
 		this.discardStaged();
+		await this.saveData(data);
+	}
+
+	/**
+	 * JSON-only write: persists movies.json without touching staged covers.
+	 * Used exclusively by the note autosave (spec: note autosave never writes
+	 * staged cover files); form saves go through save() above.
+	 */
+	async saveData(data: MovieStoreData): Promise<void> {
 		await this.adapter.write(JSON_PATH, JSON.stringify(data, null, 2));
 	}
 

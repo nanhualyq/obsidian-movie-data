@@ -34,7 +34,7 @@ export function ActorForm({
 
 	const onDelete = () =>
 		remove(
-			{ movies: data.movies, actors: data.actors.filter((a) => a.id !== actor.id) },
+			{ ...data, actors: data.actors.filter((a) => a.id !== actor.id) },
 			actor.cover || null
 		);
 
@@ -50,7 +50,7 @@ export function ActorForm({
 		const actors = idx >= 0 ? data.actors.map((a, i) => (i === idx ? nextActor : a)) : [...data.actors, nextActor];
 		setSaving(true);
 		try {
-			await commit({ movies: data.movies, actors });
+			await commit({ ...data, actors });
 		} finally {
 			setSaving(false);
 		}

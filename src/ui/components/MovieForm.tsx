@@ -44,7 +44,7 @@ export function MovieForm({
 	// D2: form computes the filtered dataset; App persists JSON first, then the cover
 	const onDelete = () =>
 		remove(
-			{ movies: data.movies.filter((m) => m.id !== movie.id), actors: data.actors },
+			{ ...data, movies: data.movies.filter((m) => m.id !== movie.id) },
 			movie.cover || null
 		);
 
@@ -70,7 +70,7 @@ export function MovieForm({
 		const movies = idx >= 0 ? data.movies.map((m, i) => (i === idx ? nextMovie : m)) : [...data.movies, nextMovie];
 		setSaving(true);
 		try {
-			await commit({ movies, actors });
+			await commit({ ...data, movies, actors });
 		} finally {
 			setSaving(false);
 		}

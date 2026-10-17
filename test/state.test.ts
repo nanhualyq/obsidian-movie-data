@@ -67,7 +67,7 @@ describe("idTimestamp", () => {
 });
 
 describe("computeResults ordering", () => {
-	const list: ListState = { actorFilter: "", entityFilter: "movies", selectedTags: new Set<string>(), page: 1 };
+	const list: ListState = { actorFilter: "", selectedTags: new Set<string>(), page: 1 };
 	const at = (ms: number, title: string): Movie => ({
 		id: idAt(ms),
 		title,
@@ -80,7 +80,7 @@ describe("computeResults ordering", () => {
 
 	it("orders movies newest-first regardless of file order", () => {
 		const movies = [at(1_600_000_000_000, "old"), at(1_700_000_000_000, "mid"), at(1_800_000_000_000, "new")];
-		expect(computeResults(movies, [], list).map((e) => e.title)).toEqual(["new", "mid", "old"]);
+		expect(computeResults(movies, [], list, "movies").map((e) => e.title)).toEqual(["new", "mid", "old"]);
 	});
 
 	it("orders actors newest-first", () => {
@@ -88,7 +88,7 @@ describe("computeResults ordering", () => {
 			{ id: "a_" + (1_600_000_000_000).toString(36) + "aaaa", name: "first", cover: "", info: "", url: "" },
 			{ id: "a_" + (1_800_000_000_000).toString(36) + "bbbb", name: "second", cover: "", info: "", url: "" },
 		];
-		expect(computeResults([], actors, { ...list, entityFilter: "actors" }).map((e) => e.title)).toEqual([
+		expect(computeResults([], actors, list, "actors").map((e) => e.title)).toEqual([
 			"second",
 			"first",
 		]);
@@ -96,20 +96,20 @@ describe("computeResults ordering", () => {
 
 	it("an edit (same id) does not reorder", () => {
 		const movies = [at(1_600_000_000_000, "old"), at(1_800_000_000_000, "new")];
-		const before = computeResults(movies, [], list).map((e) => e.id);
+		const before = computeResults(movies, [], list, "movies").map((e) => e.id);
 		// edit in place: title changes, id and file position do not
 		const edited = movies.map((m) => (m.id === movies[0].id ? { ...m, title: "old renamed" } : m));
-		expect(computeResults(edited, [], list).map((e) => e.id)).toEqual(before);
-		expect(computeResults(edited, [], list)[0].title).toBe("new");
+		expect(computeResults(edited, [], list, "movies").map((e) => e.id)).toEqual(before);
+		expect(computeResults(edited, [], list, "movies")[0].title).toBe("new");
 	});
 
 	it("ids without a parseable timestamp keep their input order", () => {
 		const movies = [movie(["x"]), movie(["y"]), movie(["z"])];
-		expect(computeResults(movies, [], list).map((e) => e.id)).toEqual(["m_x", "m_y", "m_z"]);
+		expect(computeResults(movies, [], list, "movies").map((e) => e.id)).toEqual(["m_x", "m_y", "m_z"]);
 	});
 
 	it("same-millisecond ids keep their input order (stable tie)", () => {
 		const movies = [at(1_800_000_000_000, "a"), at(1_800_000_000_000, "b")];
-		expect(computeResults(movies, [], list).map((e) => e.title)).toEqual(["a", "b"]);
+		expect(computeResults(movies, [], list, "movies").map((e) => e.title)).toEqual(["a", "b"]);
 	});
 });
