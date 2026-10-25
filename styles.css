@@ -245,9 +245,11 @@ body.is-phone.auto-full-screen .movie-data-root {
 }
 
 /* Grid */
+/* Base frame defaults to the movies ratio (4:3 landscape) so any grid without
+   a variant class still renders covers large (design D1/risks). */
 .movie-data-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+	grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
 	gap: 14px;
 }
 
@@ -264,7 +266,7 @@ body.is-phone.auto-full-screen .movie-data-root {
 }
 
 .movie-data-cover {
-	aspect-ratio: 2 / 3;
+	aspect-ratio: 4 / 3;
 	background: var(--background-secondary-alt);
 	display: flex;
 	align-items: center;
@@ -272,8 +274,18 @@ body.is-phone.auto-full-screen .movie-data-root {
 	overflow: hidden;
 }
 
-/* Grid card: contain (design D5) - the whole image stays visible inside the
-   fixed 2:3 frame instead of being cropped; posters (2:3) render as before. */
+/* Per-view frame variants (change: fit-covers-to-image-ratio, design D1/D4):
+   movies = landscape screenshots (4:3), actors = avatars (1:1). */
+.movie-data-grid--actors {
+	grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+.movie-data-grid--actors .movie-data-cover {
+	aspect-ratio: 1 / 1;
+}
+
+/* Grid card: contain (no crop, design D5; frame ratio per view, change:
+   fit-covers-to-image-ratio). */
 .movie-data-cover img {
 	width: 100%;
 	height: 100%;
@@ -559,9 +571,11 @@ dialog.movie-data-dialog::backdrop {
 	cursor: default;
 }
 
+/* Preview frame: default 4:3 (movies) + per-entity ratio override inline from
+   the passed ratio (change: fit-covers-to-image-ratio, design D3). */
 .movie-data-cover-preview {
 	width: 120px;
-	aspect-ratio: 2 / 3;
+	aspect-ratio: 4 / 3;
 	background: var(--background-secondary-alt);
 	display: flex;
 	align-items: center;
@@ -570,10 +584,11 @@ dialog.movie-data-dialog::backdrop {
 	border-radius: 4px;
 }
 
+/* No crop, same principle as the grid (design D3). */
 .movie-data-cover-preview img {
 	width: 100%;
 	height: 100%;
-	object-fit: cover;
+	object-fit: contain;
 }
 
 .movie-data-cover-preview.is-placeholder::after {

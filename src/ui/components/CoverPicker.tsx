@@ -3,6 +3,9 @@ import type { MovieStore } from "../../store";
 import { normalizeCover } from "../../coverImage";
 import { CoverImage } from "./CoverImage";
 
+/** Frame ratio per entity kind (design D2): movies = screenshots, actors = avatars. */
+const PREVIEW_RATIO = { movie: "4 / 3", actor: "1 / 1" } as const;
+
 /**
  * Cover picker: choose image file -> stage (deform) -> preview after
  * deforming. The staged bytes live in the store until save() (spec:
@@ -11,11 +14,14 @@ import { CoverImage } from "./CoverImage";
 export function CoverPicker({
 	store,
 	entityId,
+	entityKind,
 	value,
 	onChange,
 }: {
 	store: MovieStore;
 	entityId: string;
+	/** Which entity form this picker belongs to; sets the preview frame ratio. */
+	entityKind: "movie" | "actor";
 	value: string;
 	onChange: (filename: string) => void;
 }) {
@@ -63,7 +69,7 @@ export function CoverPicker({
 	return (
 		<div className="movie-data-field movie-data-cover-field" tabIndex={0} onPaste={onPaste}>
 			<label>Cover</label>
-			<CoverImage store={store} filename={value} stagedUrl={stagedUrl} preview />
+			<CoverImage store={store} filename={value} stagedUrl={stagedUrl} preview ratio={PREVIEW_RATIO[entityKind]} />
 			<input type="file" accept="image/*" onChange={onPick} />
 			<button type="button" className="movie-data-remove-btn" onClick={onRemove}>
 				Remove cover

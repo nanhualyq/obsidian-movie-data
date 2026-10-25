@@ -62,7 +62,7 @@ export function ActorForm({
 			<Field label="Name" value={name} onChange={setName} />
 			<Field label="URL" value={url} onChange={setUrl} />
 			<Field label="Info" value={info} onChange={setInfo} multiline />
-			<CoverPicker store={store} entityId={actor.id} value={cover} onChange={setCover} />
+			<CoverPicker store={store} entityId={actor.id} entityKind="actor" value={cover} onChange={setCover} />
 			<FormButtons onSave={onSave} onCancel={onCancel} saving={saving} />
 			{!isNew && (
 				<DeleteControls

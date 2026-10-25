@@ -165,10 +165,12 @@ export function ListView({
 				/>
 			</div>
 			<div className="movie-data-scroll" ref={scrollRef} onScroll={handleScroll}>
+				{/* Per-view grid variant (design D1): frame ratio + column width. */}
 				<MovieGrid
 					entries={pageEntries}
 					store={store}
 					emptyText={emptyText}
+					variant={`movie-data-grid--${view}`}
 					onSelect={openEntry}
 					onJumpActor={view === "actors" ? jumpToActor : undefined}
 				/>

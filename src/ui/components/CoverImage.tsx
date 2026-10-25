@@ -15,11 +15,14 @@ export function CoverImage({
 	filename,
 	stagedUrl,
 	preview = false,
+	ratio,
 }: {
 	store: MovieStore;
 	filename: string;
 	stagedUrl?: string | null;
 	preview?: boolean;
+	/** Preview-only frame ratio (e.g. "4 / 3") from the entity kind (design D2). */
+	ratio?: string;
 }) {
 	const cover = useCoverUrl(store, stagedUrl ? "" : filename);
 	const [broken, setBroken] = useState(false);
@@ -28,9 +31,11 @@ export function CoverImage({
 	const src = stagedUrl || (cover.status === "ok" ? cover.url : null);
 	const placeholder = broken || (!src && cover.status !== "loading");
 	const base = preview ? "movie-data-cover-preview" : "movie-data-cover";
+	// Only the preview frame varies by entity kind; the grid frame stays CSS-driven.
+	const style = preview && ratio ? { aspectRatio: ratio } : undefined;
 
 	return (
-		<div className={base + (placeholder ? " is-placeholder" : "")}>
+		<div className={base + (placeholder ? " is-placeholder" : "")} style={style}>
 			{src && !broken ? <img src={src} alt="" onError={() => setBroken(true)} /> : placeholder ? "?" : null}
 		</div>
 	);

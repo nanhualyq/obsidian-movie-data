@@ -89,7 +89,7 @@ export function MovieForm({
 					Select at least one actor.
 				</div>
 			)}
-			<CoverPicker store={store} entityId={movie.id} value={cover} onChange={setCover} />
+			<CoverPicker store={store} entityId={movie.id} entityKind="movie" value={cover} onChange={setCover} />
 			<FormButtons onSave={onSave} onCancel={onCancel} saving={saving} />
 			{!isNew && <DeleteControls onConfirm={onDelete} />}
 		</div>
