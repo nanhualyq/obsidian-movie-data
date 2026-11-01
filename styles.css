@@ -209,6 +209,11 @@ body.is-phone.auto-full-screen .movie-data-root {
 	white-space: nowrap;
 }
 
+/* Sort toggle (movies view only) - a two-state newest/random switch. */
+.movie-data-sort-btn {
+	white-space: nowrap;
+}
+
 /* Tag chips */
 .movie-data-tags {
 	display: flex;

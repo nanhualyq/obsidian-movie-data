@@ -11,7 +11,13 @@ import { NoteView } from "./components/NoteView";
 import { TabBar } from "./components/TabBar";
 import type { ListState, Overlay, Tab } from "./state";
 
-const EMPTY_LIST: ListState = { actorFilter: "", selectedTags: new Set<string>(), page: 1 };
+const EMPTY_LIST: ListState = {
+	actorFilter: "",
+	selectedTags: new Set<string>(),
+	page: 1,
+	sortMode: "newest",
+	shuffleSeed: 0,
+};
 
 /** Debounce before the note autosave writes (design D4). */
 const NOTE_AUTOSAVE_MS = 500;

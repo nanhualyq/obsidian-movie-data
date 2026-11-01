@@ -520,3 +520,101 @@ describe("tabs (three-tab entity navigation)", () => {
 		expect(actorSelect().value).toBe("a_1");
 	});
 });
+
+describe("list: movie sort toggle", () => {
+	const sortToggle = () => screen.queryByRole("button", { name: "Toggle sort order" });
+	const titles = () => cells().map((c) => c.querySelector(".movie-data-cell-title")?.textContent);
+	const NEWEST_ORDER = ["Movie 7", "Movie 6", "Movie 5", "Movie 4", "Movie 3", "Movie 2", "Movie 1", "Movie 0"];
+
+	/** 8 movies with parseable, increasing timestamps (newest-first = Movie 7..0). */
+	const seedMany = (tagFirst = 0) =>
+		seedJson({
+			movies: Array.from({ length: 8 }, (_, i) => ({
+				id: `m_${(1_600_000_000_000 + i * 1000).toString(36)}${i.toString(36).padStart(4, "0")}`,
+				title: `Movie ${i}`,
+				cover: "",
+				tags: i < tagFirst ? ["long"] : [],
+				actorIds: [],
+				info: "",
+				url: "",
+			})),
+			actors: [],
+		});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("movies view shows the toggle; entering random reorders, re-entering reshuffles", async () => {
+		seedMany();
+		const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.123456);
+		await renderApp();
+		// default: newest-first, toggle present and reflects the current mode
+		expect(sortToggle()).not.toBeNull();
+		expect(button("Sort: Newest")).toBeTruthy();
+		expect(titles()).toEqual(NEWEST_ORDER);
+
+		// enter random -> order changes but the same movies are shown
+		fireEvent.click(button("Sort: Newest"));
+		const randomA = titles();
+		expect(randomA).not.toEqual(NEWEST_ORDER);
+		expect([...randomA].sort()).toEqual([...NEWEST_ORDER].sort());
+		expect(button("Sort: Random")).toBeTruthy();
+
+		// back to newest restores the newest-first order
+		fireEvent.click(button("Sort: Random"));
+		expect(titles()).toEqual(NEWEST_ORDER);
+
+		// re-enter random with a different seed -> freshly reshuffled
+		randomSpy.mockReturnValue(0.987654);
+		fireEvent.click(button("Sort: Newest"));
+		expect(titles()).not.toEqual(randomA);
+	});
+
+	it("changing a filter while random reveals a stable subset (no reshuffle)", async () => {
+		seedMany(4); // first 4 tagged "long"
+		vi.spyOn(Math, "random").mockReturnValue(0.555555);
+		await renderApp();
+		fireEvent.click(button("Sort: Newest")); // enter random
+		const before = titles();
+		fireEvent.click(button("long")); // filter to the tagged movies
+		const after = titles();
+		expect(after).toHaveLength(4);
+		// the filtered list is a subsequence of the full random order (no reshuffle)
+		let cursor = 0;
+		for (const t of after) {
+			cursor = before.indexOf(t!, cursor) + 1;
+			expect(cursor).toBeGreaterThan(0);
+		}
+	});
+
+	it("actors view has no sort toggle and stays newest-first", async () => {
+		seedJson({
+			movies: [],
+			actors: [0, 1, 2].map((i) => ({
+				id: `a_${(1_600_000_000_000 + i * 1000).toString(36)}${i.toString(36).padStart(4, "0")}`,
+				name: `Actor ${i}`,
+				cover: "",
+				info: "",
+				url: "",
+			})),
+		});
+		await renderApp();
+		fireEvent.click(button("Actors"));
+		expect(sortToggle()).toBeNull(); // no sort control in the actors view
+		expect(titles()).toEqual(["Actor 2", "Actor 1", "Actor 0"]); // newest-first
+	});
+
+	it("the mode is session-only: a fresh mount starts back at newest-first", async () => {
+		seedMany();
+		vi.spyOn(Math, "random").mockReturnValue(0.314159);
+		await renderApp();
+		fireEvent.click(button("Sort: Newest")); // enter random
+		expect(button("Sort: Random")).toBeTruthy();
+
+		cleanup(); // unmount the view (as closing it would)
+		await renderApp(); // fresh mount
+		expect(button("Sort: Newest")).toBeTruthy(); // default mode restored
+		expect(titles()).toEqual(NEWEST_ORDER);
+	});
+});

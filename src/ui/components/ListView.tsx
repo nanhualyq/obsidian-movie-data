@@ -102,6 +102,22 @@ export function ListView({
 		setList((prev) => ({ ...prev, ...patch(prev), page: 1 }));
 	};
 
+	/**
+	 * Sort toggle (spec: movie sort toggle): a two-state switch between
+	 * newest-first and random. Entering random assigns a fresh seed so each entry
+	 * reshuffles; returning to newest leaves the seed alone. Pagination returns to
+	 * page 1 (a new ordering is a new result set). The seed lives in `list`, so the
+	 * memo above re-derives the order automatically - no extra wiring.
+	 */
+	const toggleSort = () => {
+		setBarsHidden(false);
+		setList((prev) =>
+			prev.sortMode === "random"
+				? { ...prev, sortMode: "newest", page: 1 }
+				: { ...prev, sortMode: "random", shuffleSeed: (Math.random() * 2 ** 32) >>> 0, page: 1 }
+		);
+	};
+
 	const emptyText =
 		list.selectedTags.size > 0 || list.actorFilter
 			? "No results"
@@ -141,7 +157,7 @@ export function ListView({
 				}
 				ref={headerRef}
 			>
-				<Toolbar view={view} onAdd={openAdd} />
+				<Toolbar view={view} onAdd={openAdd} sortMode={list.sortMode} onToggleSort={toggleSort} />
 				{view === "movies" && (
 					<ActorSelect
 						mode="single"
